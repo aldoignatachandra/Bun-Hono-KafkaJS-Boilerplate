@@ -1,0 +1,106 @@
+version: "3.9"
+
+services:
+  kafka-1:
+    image: bitnami/kafka:3.7
+    container_name: kafka-1
+    hostname: kafka-1
+    ports:
+      - "19092:9092"
+    environment:
+      # KRaft mode configuration
+      KAFKA_ENABLE_KRAFT: "yes"
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: "broker,controller"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      
+      # Listener configuration
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:19092"
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka-1:9093,2@kafka-2:9093"
+      
+      # Replication and durability
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "2"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "2"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      
+      # Performance tuning
+      KAFKA_CFG_NUM_NETWORK_THREADS: "8"
+      KAFKA_CFG_NUM_IO_THREADS: "16"
+      KAFKA_CFG_SOCKET_SEND_BUFFER_BYTES: "102400"
+      KAFKA_CFG_SOCKET_RECEIVE_BUFFER_BYTES: "102400"
+      KAFKA_CFG_SOCKET_REQUEST_MAX_BYTES: "104857600"
+      
+      # Log configuration
+      KAFKA_CFG_LOG_RETENTION_HOURS: "168"
+      KAFKA_CFG_LOG_SEGMENT_BYTES: "1073741824"
+      KAFKA_CFG_LOG_RETENTION_CHECK_INTERVAL_MS: "300000"
+      
+    volumes:
+      - kafka_1_data:/bitnami/kafka
+    networks:
+      - kafka-network
+
+  kafka-2:
+    image: bitnami/kafka:3.7
+    container_name: kafka-2
+    hostname: kafka-2
+    ports:
+      - "29092:9092"
+    environment:
+      # KRaft mode configuration
+      KAFKA_ENABLE_KRAFT: "yes"
+      KAFKA_CFG_NODE_ID: "2"
+      KAFKA_CFG_PROCESS_ROLES: "broker,controller"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      
+      # Listener configuration
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:29092"
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka-1:9093,2@kafka-2:9093"
+      
+      # Replication and durability
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "2"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "2"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      
+      # Performance tuning
+      KAFKA_CFG_NUM_NETWORK_THREADS: "8"
+      KAFKA_CFG_NUM_IO_THREADS: "16"
+      KAFKA_CFG_SOCKET_SEND_BUFFER_BYTES: "102400"
+      KAFKA_CFG_SOCKET_RECEIVE_BUFFER_BYTES: "102400"
+      KAFKA_CFG_SOCKET_REQUEST_MAX_BYTES: "104857600"
+      
+      # Log configuration
+      KAFKA_CFG_LOG_RETENTION_HOURS: "168"
+      KAFKA_CFG_LOG_SEGMENT_BYTES: "1073741824"
+      KAFKA_CFG_LOG_RETENTION_CHECK_INTERVAL_MS: "300000"
+      
+    volumes:
+      - kafka_2_data:/bitnami/kafka
+    networks:
+      - kafka-network
+
+  # Optional: Kafka UI for monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka-1:9092,kafka-2:9092"
+      KAFKA_CLUSTERS_0_ZOOKEEPER: ""
+    depends_on:
+      - kafka-1
+      - kafka-2
+    networks:
+      - kafka-network
+
+volumes:
+  kafka_1_data:
+  kafka_2_data:
+
+networks:
+  kafka-network:
+    driver: bridge

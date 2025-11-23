@@ -1,0 +1,53 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to production
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            # Pull latest images
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-prod:latest
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-prod:latest
+            
+            # Stop existing containers
+            docker-compose -f infra/docker/compose/prod.yml down || true
+            
+            # Start new containers
+            docker-compose -f infra/docker/compose/prod.yml up -d
+            
+            # Wait for services to be healthy
+            sleep 30
+            
+            # Run database migrations
+            docker-compose -f infra/docker/compose/prod.yml exec user-service bun run db:migrate:deploy
+            docker-compose -f infra/docker/compose/prod.yml exec product-service bun run db:migrate:deploy
+            
+            # Health check
+            curl -f http://localhost:3101/health || echo "User service health check failed"
+            curl -f http://localhost:3102/health || echo "Product service health check failed"

@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: postgres-staging
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: cqrs_demo_staging
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # User Service
+  user-service:
+    image: bun-hono-kafka-cqrs/user-service:staging
+    container_name: user-service-staging
+    environment:
+      NODE_ENV: staging
+      DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/cqrs_demo_staging
+      JWT_SECRET: ${JWT_SECRET}
+      USER_SERVICE_PORT: 3101
+      KAFKA_BROKERS: kafka-1:9092,kafka-2:9092
+    ports:
+      - "3101:3101"
+    depends_on:
+      - postgres
+      - kafka-1
+      - kafka-2
+    networks:
+      - app-network
+
+  # Product Service
+  product-service:
+    image: bun-hono-kafka-cqrs/product-service:staging
+    container_name: product-service-staging
+    environment:
+      NODE_ENV: staging
+      DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/cqrs_demo_staging
+      PRODUCT_SERVICE_PORT: 3102
+      KAFKA_BROKERS: kafka-1:9092,kafka-2:9092
+    ports:
+      - "3102:3102"
+    depends_on:
+      - postgres
+      - kafka-1
+      - kafka-2
+    networks:
+      - app-network
+
+  # Kafka Brokers
+  kafka-1:
+    extends:
+      file: ../../infra/kafka/docker-compose.yml
+    service: kafka-1
+    networks:
+      - app-network
+
+  kafka-2:
+    extends:
+      file: ../../infra/kafka/docker-compose.yml
+    service: kafka-2
+    networks:
+      - app-network
+
+volumes:
+  postgres_staging_data:
+
+networks:
+  app-network:
+    driver: bridge

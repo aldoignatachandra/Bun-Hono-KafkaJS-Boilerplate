@@ -1,0 +1,93 @@
+version: "3.9"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: postgres-prod
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: cqrs_demo_prod
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  # User Service
+  user-service:
+    image: bun-hono-kafka-cqrs/user-service:prod
+    container_name: user-service-prod
+    environment:
+      NODE_ENV: prod
+      DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/cqrs_demo_prod
+      JWT_SECRET: ${JWT_SECRET}
+      USER_SERVICE_PORT: 3101
+      KAFKA_BROKERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_SSL: "true"
+      KAFKA_SASL_MECHANISM: "plain"
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+    ports:
+      - "3101:3101"
+    depends_on:
+      - postgres
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    networks:
+      - app-network
+
+  # Product Service
+  product-service:
+    image: bun-hono-kafka-cqrs/product-service:prod
+    container_name: product-service-prod
+    environment:
+      NODE_ENV: prod
+      DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/cqrs_demo_prod
+      PRODUCT_SERVICE_PORT: 3102
+      KAFKA_BROKERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_SSL: "true"
+      KAFKA_SASL_MECHANISM: "plain"
+      KAFKA_USERNAME: ${KAFKA_USERNAME}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+    ports:
+      - "3102:3102"
+    depends_on:
+      - postgres
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    networks:
+      - app-network
+
+  # Kafka Brokers
+  kafka-1:
+    extends:
+      file: ../../infra/kafka/docker-compose.yml
+    service: kafka-1
+    networks:
+      - app-network
+
+  kafka-2:
+    extends:
+      file: ../../infra/kafka/docker-compose.yml
+    service: kafka-2
+    networks:
+      - app-network
+
+  kafka-3:
+    extends:
+      file: ../../infra/kafka/docker-compose.yml
+    service: kafka-3
+    networks:
+      - app-network
+
+volumes:
+  postgres_prod_data:
+
+networks:
+  app-network:
+    driver: bridge

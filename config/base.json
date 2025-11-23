@@ -1,0 +1,56 @@
+{
+  "app": {
+    "name": "bun-hono-kafka-cqrs",
+    "version": "1.0.0"
+  },
+  "database": {
+    "pool": {
+      "min": 1,
+      "max": 10,
+      "idleTimeoutMs": 10000
+    }
+  },
+  "auth": {
+    "jwt": {
+      "secret": "your-secret-key-change-in-production",
+      "expiresIn": "1d"
+    }
+  },
+  "kafka": {
+    "clientId": "cqrs-demo",
+    "producer": {
+      "batchSize": 16384,
+      "lingerMs": 5,
+      "compressionType": "gzip",
+      "maxInFlightRequests": 5,
+      "enableIdempotence": true
+    },
+    "consumer": {
+      "sessionTimeoutMs": 30000,
+      "heartbeatIntervalMs": 3000,
+      "maxPollRecords": 500,
+      "autoOffsetReset": "earliest",
+      "enableAutoCommit": false
+    }
+  },
+  "logging": {
+    "level": "info",
+    "pretty": true
+  },
+  "metrics": {
+    "enabled": false,
+    "collectDefaultMetrics": false,
+    "prefix": "cqrs_",
+    "buckets": [0.01, 0.05, 0.1, 0.5, 1, 5, 10]
+  },
+  "security": {
+    "encryptionEnabled": false,
+    "keyRotationInterval": 0,
+    "auditLogging": false
+  },
+  "features": {
+    "hotReload": true,
+    "autoMigrate": true,
+    "debugMode": true
+  }
+}

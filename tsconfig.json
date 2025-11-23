@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "allowJs": true,
+    "sourceMap": true,
+    "strict": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true,
+    "types": ["bun-types"],
+    "baseUrl": ".",
+    "outDir": "./dist",
+    "declaration": true,
+    "declarationMap": true,
+    "paths": {
+      "@common/*": ["packages/common/src/*"]
+    }
+  },
+  "include": ["packages/*/src/**/*", "apps/*/src/**/*", "apps/*/index.ts"],
+  "exclude": ["node_modules", "dist", "packages/*/dist", "apps/*/dist"],
+  "references": [{ "path": "./packages/common" }]
+}

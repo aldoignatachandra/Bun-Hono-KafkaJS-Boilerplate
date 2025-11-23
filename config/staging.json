@@ -1,0 +1,107 @@
+{
+  "database": {
+    "url": "postgresql://postgres:postgres@staging-db:5432/cqrs_demo_staging?schema=public"
+  },
+  "services": {
+    "userService": {
+      "port": 3101
+    },
+    "productService": {
+      "port": 3102
+    }
+  },
+  "kafka": {
+    "brokers": ["kafka-1:9092", "kafka-2:9092"],
+    "ssl": false,
+    "sasl": {
+      "mechanism": "",
+      "username": "",
+      "password": ""
+    },
+    "topics": {
+      "users.created": {
+        "partitions": 3,
+        "replicationFactor": 2,
+        "config": {
+          "retention.ms": "604800000",
+          "cleanup.policy": "delete",
+          "compression.type": "gzip"
+        }
+      },
+      "products.created": {
+        "partitions": 6,
+        "replicationFactor": 2,
+        "config": {
+          "retention.ms": "604800000",
+          "cleanup.policy": "delete",
+          "compression.type": "gzip"
+        }
+      },
+      "products.updated": {
+        "partitions": 6,
+        "replicationFactor": 2,
+        "config": {
+          "retention.ms": "604800000",
+          "cleanup.policy": "delete",
+          "compression.type": "gzip"
+        }
+      },
+      "products.deleted": {
+        "partitions": 6,
+        "replicationFactor": 2,
+        "config": {
+          "retention.ms": "604800000",
+          "cleanup.policy": "delete",
+          "compression.type": "gzip"
+        }
+      },
+      "notifications.send": {
+        "partitions": 4,
+        "replicationFactor": 2,
+        "config": {
+          "retention.ms": "86400000",
+          "cleanup.policy": "delete"
+        }
+      },
+      "events.retry": {
+        "partitions": 3,
+        "replicationFactor": 2,
+        "config": {
+          "retention.ms": "604800000",
+          "cleanup.policy": "delete",
+          "message.timestamp.type": "LogAppendTime"
+        }
+      },
+      "events.dlq": {
+        "partitions": 3,
+        "replicationFactor": 2,
+        "config": {
+          "retention.ms": "2592000000",
+          "cleanup.policy": "delete",
+          "message.timestamp.type": "LogAppendTime"
+        }
+      }
+    }
+  },
+  "logging": {
+    "level": "info",
+    "pretty": false
+  },
+  "metrics": {
+    "enabled": true,
+    "collectDefaultMetrics": true,
+    "prefix": "cqrs_staging_",
+    "buckets": [0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10]
+  },
+  "security": {
+    "encryptionEnabled": true,
+    "keyRotationInterval": 604800000,
+    "auditLogging": true
+  },
+  "features": {
+    "hotReload": false,
+    "autoMigrate": false,
+    "debugMode": false,
+    "mockExternalServices": false
+  }
+}
