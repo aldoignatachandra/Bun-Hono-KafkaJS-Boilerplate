@@ -1,4 +1,4 @@
-version: "3.9"
+version: '3.9'
 
 services:
   # PostgreSQL Database
@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: cqrs_demo_staging
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_staging_data:/var/lib/postgresql/data
     networks:
@@ -27,7 +27,7 @@ services:
       USER_SERVICE_PORT: 3101
       KAFKA_BROKERS: kafka-1:9092,kafka-2:9092
     ports:
-      - "3101:3101"
+      - '3101:3101'
     depends_on:
       - postgres
       - kafka-1
@@ -45,7 +45,7 @@ services:
       PRODUCT_SERVICE_PORT: 3102
       KAFKA_BROKERS: kafka-1:9092,kafka-2:9092
     ports:
-      - "3102:3102"
+      - '3102:3102'
     depends_on:
       - postgres
       - kafka-1

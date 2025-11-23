@@ -1,23 +1,28 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
+    "outDir": "./dist",
+    "rootDir": "./",
+    "composite": true,
+    "incremental": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
+    "noImplicitReturns": false,
+    "noFallthroughCasesInSwitch": false,
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "allowJs": true,
-    "sourceMap": true,
-    "strict": false,
-    "moduleDetection": "force",
     "skipLibCheck": true,
-    "types": ["bun-types"],
-    "baseUrl": ".",
-    "outDir": "./dist",
-    "paths": {
-      "@common/*": ["../../packages/common/src/*"]
-    }
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false
   },
   "include": ["src/**/*", "index.ts"],
-  "exclude": ["node_modules", "dist"],
-  "references": [{ "path": "../../packages/common" }]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+  "references": [{ "path": "../../packages/common" }, { "path": "../../packages/drizzle" }]
 }

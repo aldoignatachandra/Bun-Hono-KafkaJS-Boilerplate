@@ -16,10 +16,27 @@
     "declaration": true,
     "declarationMap": true,
     "paths": {
-      "@common/*": ["packages/common/src/*"]
-    }
+      "@common/*": ["packages/common/src/*"],
+      "@cqrs/common/*": ["packages/common/src/*"],
+      "@cqrs/drizzle/*": ["packages/drizzle/src/*"]
+    },
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false
   },
   "include": ["packages/*/src/**/*", "apps/*/src/**/*", "apps/*/index.ts"],
-  "exclude": ["node_modules", "dist", "packages/*/dist", "apps/*/dist"],
-  "references": [{ "path": "./packages/common" }]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "packages/*/dist",
+    "apps/*/dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
+  "references": [{ "path": "./packages/common" }, { "path": "./packages/drizzle" }],
+  "files": [],
+  "watchOptions": {
+    "excludeDirectories": ["**/node_modules", "**/dist"]
+  }
 }
