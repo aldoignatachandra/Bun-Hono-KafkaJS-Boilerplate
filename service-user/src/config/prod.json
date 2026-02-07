@@ -1,0 +1,112 @@
+{
+  "database": {
+    "url": "postgresql://postgres:postgres@prod-db:5432/cqrs_demo_prod?schema=public"
+  },
+  "services": {
+    "userService": {
+      "port": 3101
+    },
+    "productService": {
+      "port": 3102
+    }
+  },
+  "kafka": {
+    "brokers": ["kafka-1:9092", "kafka-2:9092", "kafka-3:9092"],
+    "ssl": true,
+    "sasl": {
+      "mechanism": "plain",
+      "username": "${KAFKA_USERNAME}",
+      "password": "${KAFKA_PASSWORD}"
+    },
+    "topics": {
+      "users.created": {
+        "partitions": 6,
+        "replicationFactor": 3,
+        "config": {
+          "retention.ms": "2592000000",
+          "cleanup.policy": "delete",
+          "compression.type": "lz4",
+          "max.message.bytes": "10485760"
+        }
+      },
+      "products.created": {
+        "partitions": 12,
+        "replicationFactor": 3,
+        "config": {
+          "retention.ms": "2592000000",
+          "cleanup.policy": "delete",
+          "compression.type": "lz4",
+          "max.message.bytes": "10485760"
+        }
+      },
+      "products.updated": {
+        "partitions": 12,
+        "replicationFactor": 3,
+        "config": {
+          "retention.ms": "2592000000",
+          "cleanup.policy": "delete",
+          "compression.type": "lz4",
+          "max.message.bytes": "10485760"
+        }
+      },
+      "products.deleted": {
+        "partitions": 12,
+        "replicationFactor": 3,
+        "config": {
+          "retention.ms": "2592000000",
+          "cleanup.policy": "delete",
+          "compression.type": "lz4",
+          "max.message.bytes": "10485760"
+        }
+      },
+      "notifications.send": {
+        "partitions": 8,
+        "replicationFactor": 3,
+        "config": {
+          "retention.ms": "2592000000",
+          "cleanup.policy": "delete",
+          "compression.type": "lz4"
+        }
+      },
+      "events.retry": {
+        "partitions": 6,
+        "replicationFactor": 3,
+        "config": {
+          "retention.ms": "2592000000",
+          "cleanup.policy": "delete",
+          "message.timestamp.type": "LogAppendTime"
+        }
+      },
+      "events.dlq": {
+        "partitions": 6,
+        "replicationFactor": 3,
+        "config": {
+          "retention.ms": "7776000000",
+          "cleanup.policy": "delete",
+          "message.timestamp.type": "LogAppendTime"
+        }
+      }
+    }
+  },
+  "logging": {
+    "level": "warn",
+    "pretty": false
+  },
+  "metrics": {
+    "enabled": true,
+    "collectDefaultMetrics": true,
+    "prefix": "cqrs_prod_",
+    "buckets": [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10]
+  },
+  "security": {
+    "encryptionEnabled": true,
+    "keyRotationInterval": 2592000000,
+    "auditLogging": true
+  },
+  "features": {
+    "hotReload": false,
+    "autoMigrate": false,
+    "debugMode": false,
+    "mockExternalServices": false
+  }
+}

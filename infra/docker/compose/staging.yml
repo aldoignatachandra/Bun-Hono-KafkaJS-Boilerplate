@@ -17,9 +17,9 @@ services:
       - app-network
 
   # User Service
-  user-service:
-    image: bun-hono-kafka-cqrs/user-service:staging
-    container_name: user-service-staging
+  service-user:
+    image: bun-hono-kafka-cqrs/service-user:staging
+    container_name: service-user-staging
     environment:
       NODE_ENV: staging
       DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/cqrs_demo_staging
@@ -36,9 +36,9 @@ services:
       - app-network
 
   # Product Service
-  product-service:
-    image: bun-hono-kafka-cqrs/product-service:staging
-    container_name: product-service-staging
+  service-product:
+    image: bun-hono-kafka-cqrs/service-product:staging
+    container_name: service-product-staging
     environment:
       NODE_ENV: staging
       DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/cqrs_demo_staging
@@ -50,6 +50,19 @@ services:
       - postgres
       - kafka-1
       - kafka-2
+    networks:
+      - app-network
+
+  # Auth Service
+  service-auth:
+    image: bun-hono-kafka-cqrs/service-auth:staging
+    container_name: service-auth-staging
+    environment:
+      NODE_ENV: staging
+      JWT_SECRET: ${JWT_SECRET}
+      AUTH_SERVICE_PORT: 3100
+    ports:
+      - '3100:3100'
     networks:
       - app-network
 

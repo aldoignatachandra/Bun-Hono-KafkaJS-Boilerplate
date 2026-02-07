@@ -17,11 +17,11 @@ services:
       - app-network
 
   # User Service
-  user-service:
+  service-user:
     build:
-      context: ../../
-      dockerfile: ../../apps/user-service/Dockerfile.dev
-    container_name: user-service-dev
+      context: ../../service-user
+      dockerfile: Dockerfile.dev
+    container_name: service-user-dev
     environment:
       NODE_ENV: dev
       DB_URL: postgresql://postgres:postgres@postgres:5432/cqrs_demo_dev
@@ -38,11 +38,11 @@ services:
       - app-network
 
   # Product Service
-  product-service:
+  service-product:
     build:
-      context: ../../
-      dockerfile: ../../apps/product-service/Dockerfile.dev
-    container_name: product-service-dev
+      context: ../../service-product
+      dockerfile: Dockerfile.dev
+    container_name: service-product-dev
     environment:
       NODE_ENV: dev
       DB_URL: postgresql://postgres:postgres@postgres:5432/cqrs_demo_dev
@@ -54,6 +54,21 @@ services:
       - postgres
       - kafka-1
       - kafka-2
+    networks:
+      - app-network
+
+  # Auth Service
+  service-auth:
+    build:
+      context: ../../service-auth
+      dockerfile: Dockerfile.dev
+    container_name: service-auth-dev
+    environment:
+      NODE_ENV: dev
+      JWT_SECRET: supersecret-change-me-in-production
+      AUTH_SERVICE_PORT: 3100
+    ports:
+      - '3100:3100'
     networks:
       - app-network
 

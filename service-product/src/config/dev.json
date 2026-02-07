@@ -1,0 +1,92 @@
+{
+  "database": {
+    "url": "postgresql://postgres:postgres@localhost:5432/cqrs_demo_dev?schema=public"
+  },
+  "services": {
+    "userService": {
+      "port": 3101
+    },
+    "productService": {
+      "port": 3102
+    }
+  },
+  "kafka": {
+    "brokers": ["localhost:19092", "localhost:29092"],
+    "ssl": false,
+    "sasl": {
+      "mechanism": "",
+      "username": "",
+      "password": ""
+    },
+    "topics": {
+      "users.created": {
+        "partitions": 1,
+        "replicationFactor": 1,
+        "config": {
+          "retention.ms": "86400000",
+          "cleanup.policy": "delete"
+        }
+      },
+      "products.created": {
+        "partitions": 1,
+        "replicationFactor": 1,
+        "config": {
+          "retention.ms": "86400000",
+          "cleanup.policy": "delete"
+        }
+      },
+      "products.updated": {
+        "partitions": 1,
+        "replicationFactor": 1,
+        "config": {
+          "retention.ms": "86400000",
+          "cleanup.policy": "delete"
+        }
+      },
+      "products.deleted": {
+        "partitions": 1,
+        "replicationFactor": 1,
+        "config": {
+          "retention.ms": "86400000",
+          "cleanup.policy": "delete"
+        }
+      },
+      "notifications.send": {
+        "partitions": 1,
+        "replicationFactor": 1,
+        "config": {
+          "retention.ms": "86400000",
+          "cleanup.policy": "delete"
+        }
+      },
+      "events.retry": {
+        "partitions": 1,
+        "replicationFactor": 1,
+        "config": {
+          "retention.ms": "86400000",
+          "cleanup.policy": "delete",
+          "message.timestamp.type": "LogAppendTime"
+        }
+      },
+      "events.dlq": {
+        "partitions": 1,
+        "replicationFactor": 1,
+        "config": {
+          "retention.ms": "86400000",
+          "cleanup.policy": "delete",
+          "message.timestamp.type": "LogAppendTime"
+        }
+      }
+    }
+  },
+  "logging": {
+    "level": "debug",
+    "pretty": true
+  },
+  "features": {
+    "hotReload": true,
+    "autoMigrate": true,
+    "debugMode": true,
+    "mockExternalServices": true
+  }
+}

@@ -17,9 +17,9 @@ services:
       - app-network
 
   # User Service
-  user-service:
-    image: bun-hono-kafka-cqrs/user-service:prod
-    container_name: user-service-prod
+  service-user:
+    image: bun-hono-kafka-cqrs/service-user:prod
+    container_name: service-user-prod
     environment:
       NODE_ENV: prod
       DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/cqrs_demo_prod
@@ -41,9 +41,9 @@ services:
       - app-network
 
   # Product Service
-  product-service:
-    image: bun-hono-kafka-cqrs/product-service:prod
-    container_name: product-service-prod
+  service-product:
+    image: bun-hono-kafka-cqrs/service-product:prod
+    container_name: service-product-prod
     environment:
       NODE_ENV: prod
       DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/cqrs_demo_prod
@@ -60,6 +60,19 @@ services:
       - kafka-1
       - kafka-2
       - kafka-3
+    networks:
+      - app-network
+
+  # Auth Service
+  service-auth:
+    image: bun-hono-kafka-cqrs/service-auth:prod
+    container_name: service-auth-prod
+    environment:
+      NODE_ENV: prod
+      JWT_SECRET: ${JWT_SECRET}
+      AUTH_SERVICE_PORT: 3100
+    ports:
+      - '3100:3100'
     networks:
       - app-network
 

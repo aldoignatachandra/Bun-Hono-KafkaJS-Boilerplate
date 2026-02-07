@@ -1,0 +1,49 @@
+{
+  "name": "service-user",
+  "version": "1.0.0",
+  "description": "User management service with CQRS pattern",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "bun run index.ts",
+    "dev:watch": "tsc --watch",
+    "start": "bun dist/index.js",
+    "test": "bun test",
+    "test:unit": "bun test --test-path-pattern=tests/unit",
+    "test:integration": "bun test --test-path-pattern=tests/integration",
+    "lint": "bunx eslint src --ext .ts",
+    "lint:fix": "bunx eslint src --ext .ts --fix",
+    "db:check": "drizzle-kit check",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "hono": "^3.11.7",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "kafkajs": "^2.2.4",
+    "drizzle-orm": "^0.29.3",
+    "postgres": "^3.4.3",
+    "zod": "^3.22.4",
+    "typedi": "^0.10.0",
+    "reflect-metadata": "^0.1.14",
+    "pino": "^8.17.2",
+    "prom-client": "^15.1.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.20.6",
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.10.5",
+    "@types/pg": "^8.10.9",
+    "typescript": "^5.6.3",
+    "bun-types": "latest",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0"
+  }
+}

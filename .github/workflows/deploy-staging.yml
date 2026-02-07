@@ -43,3 +43,7 @@ jobs:
             
             # Wait for services to be healthy
             sleep 30
+            
+            # Run database migrations
+            docker-compose -f infra/docker/compose/staging.yml exec user-service bun run db:migrate:deploy
+            docker-compose -f infra/docker/compose/staging.yml exec product-service bun run db:migrate:deploy
