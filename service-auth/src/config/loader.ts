@@ -12,7 +12,7 @@ const ConfigSchema = z.object({
     version: z.string(),
   }),
   database: z.object({
-    url: z.string(),
+    url: z.string().optional(),
     pool: z.object({
       min: z.number(),
       max: z.number(),
@@ -25,14 +25,16 @@ const ConfigSchema = z.object({
       expiresIn: z.string(),
     }),
   }),
-  services: z.object({
-    userService: z.object({
-      port: z.number(),
-    }),
-    productService: z.object({
-      port: z.number(),
-    }),
-  }),
+  services: z
+    .object({
+      userService: z.object({
+        port: z.number(),
+      }),
+      productService: z.object({
+        port: z.number(),
+      }),
+    })
+    .optional(),
   kafka: z.object({
     clientId: z.string(),
     brokers: z.array(z.string()),
