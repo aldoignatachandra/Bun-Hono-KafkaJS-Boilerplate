@@ -2,6 +2,7 @@
   "name": "bun-hono-kafka-cqrs",
   "version": "2.0.0",
   "description": "Production-grade microservices boilerplate with Bun, Hono, PostgreSQL, and Kafka",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "bun run --parallel dev:service-auth dev:service-user dev:service-product",
