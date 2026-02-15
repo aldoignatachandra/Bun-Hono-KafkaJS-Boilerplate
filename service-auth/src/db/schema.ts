@@ -9,11 +9,14 @@ export const users = createParanoidTable(
   'users',
   {
     email: varchar('email', { length: 255 }).notNull().unique(),
+    username: varchar('username', { length: 50 }).notNull().unique(),
+    name: varchar('name', { length: 255 }),
     password: text('password').notNull(),
     role: roleEnum('role'),
   },
   table => ({
     roleIdx: index('users_role_idx').on(table.role),
+    usernameIdx: index('users_username_idx').on(table.username),
   })
 );
 
@@ -21,6 +24,8 @@ export const users = createParanoidTable(
 export type User = typeof users.$inferSelect;
 export interface UserEntity extends BaseParanoidEntity {
   email: string;
+  username: string;
+  name: string | null;
   password: string;
   role: 'ADMIN' | 'USER';
 }

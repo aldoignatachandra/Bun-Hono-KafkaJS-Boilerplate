@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { Container } from 'typedi';
+import { errorResponse, successResponse } from '../../../helpers/api-response';
 import { auth } from '../../../middlewares/auth';
 import { CreateProductSchema, UpdateProductSchema } from '../domain/product';
 import { CreateProductCommand } from '../repositories/commands/CreateProductCommand';
@@ -40,9 +41,9 @@ productRoutes.post('/products', async c => {
       ownerId: user.sub,
     });
 
-    return c.json(product);
+    return successResponse(c, product, 'Product created successfully', 201);
   } catch (error) {
-    return c.text('Failed to create product', 400);
+    return errorResponse(c, 'Failed to create product', 'PRODUCT_CREATE_FAILED', 400, error);
   }
 });
 
@@ -72,20 +73,17 @@ productRoutes.get('/products', async c => {
       offset,
     });
 
-    return c.json({
-      data: products,
-      meta: {
-        includeDeleted,
-        onlyDeleted,
-        search,
-        priceRange: { min: minPrice, max: maxPrice },
-        page,
-        limit,
-        count: products.length,
-      },
+    return successResponse(c, products, 'Products fetched successfully', 200, {
+      includeDeleted,
+      onlyDeleted,
+      search,
+      priceRange: { min: minPrice, max: maxPrice },
+      page,
+      limit,
+      count: products.length,
     });
   } catch (error) {
-    return c.text('Failed to fetch products', 500);
+    return errorResponse(c, 'Failed to fetch products', 'PRODUCT_FETCH_FAILED', 500, error);
   }
 });
 
@@ -103,17 +101,17 @@ productRoutes.get('/products/:id', async c => {
       : await getProductQuery.execute(productId);
 
     if (!product) {
-      return c.text('Product not found', 404);
+      return errorResponse(c, 'Product not found', 'PRODUCT_NOT_FOUND', 404);
     }
 
     // Check ownership for non-admin users
     if (product.ownerId !== user.sub && user.role !== 'ADMIN') {
-      return c.text('Access denied', 403);
+      return errorResponse(c, 'Access denied', 'ACCESS_DENIED', 403);
     }
 
-    return c.json(product);
+    return successResponse(c, product, 'Product fetched successfully');
   } catch (error) {
-    return c.text('Failed to fetch product', 500);
+    return errorResponse(c, 'Failed to fetch product', 'PRODUCT_FETCH_FAILED', 500, error);
   }
 });
 
@@ -128,9 +126,9 @@ productRoutes.patch('/products/:id', async c => {
     const updateProductCommand = Container.get(UpdateProductCommand);
     const product = await updateProductCommand.execute(productId, validatedData, user.sub);
 
-    return c.json(product);
+    return successResponse(c, product, 'Product updated successfully');
   } catch (error) {
-    return c.text('Failed to update product', 400);
+    return errorResponse(c, 'Failed to update product', 'PRODUCT_UPDATE_FAILED', 400, error);
   }
 });
 
@@ -144,13 +142,16 @@ productRoutes.delete('/products/:id', async c => {
     const deleteProductCommand = Container.get(DeleteProductCommand);
     await deleteProductCommand.execute(productId, user.sub, force);
 
-    return c.json({
-      message: force ? 'Product permanently deleted' : 'Product soft deleted',
-      productId,
-      force,
-    });
+    return successResponse(
+      c,
+      {
+        productId,
+        force,
+      },
+      force ? 'Product permanently deleted' : 'Product soft deleted'
+    );
   } catch (error) {
-    return c.text('Failed to delete product', 400);
+    return errorResponse(c, 'Failed to delete product', 'PRODUCT_DELETE_FAILED', 400, error);
   }
 });
 
@@ -163,15 +164,12 @@ productRoutes.post('/products/:id/restore', async c => {
     const restoreProductCommand = Container.get(RestoreProductCommand);
     const restoredProduct = await restoreProductCommand.execute(productId, user.sub);
 
-    return c.json({
-      message: 'Product restored successfully',
-      product: restoredProduct,
-    });
+    return successResponse(c, { product: restoredProduct }, 'Product restored successfully');
   } catch (error) {
     if (error instanceof Error && error.message === 'Product not found or access denied') {
-      return c.text('Product not found or access denied', 404);
+      return errorResponse(c, 'Product not found or access denied', 'PRODUCT_NOT_FOUND', 404);
     }
-    return c.text('Failed to restore product', 500);
+    return errorResponse(c, 'Failed to restore product', 'PRODUCT_RESTORE_FAILED', 500, error);
   }
 });
 
@@ -184,7 +182,7 @@ productRoutes.get('/products/search', async c => {
     const onlyDeleted = c.req.query('onlyDeleted') === 'true';
 
     if (!query) {
-      return c.text('Search query is required', 400);
+      return errorResponse(c, 'Search query is required', 'MISSING_SEARCH_QUERY', 400);
     }
 
     const getProductQuery = Container.get(GetProductQuery);
@@ -203,17 +201,14 @@ productRoutes.get('/products/search', async c => {
       products = products.filter(product => product.ownerId === user.sub);
     }
 
-    return c.json({
-      products,
-      meta: {
-        query,
-        includeDeleted,
-        onlyDeleted,
-        count: products.length,
-      },
+    return successResponse(c, products, 'Products searched successfully', 200, {
+      query,
+      includeDeleted,
+      onlyDeleted,
+      count: products.length,
     });
   } catch (error) {
-    return c.text('Failed to search products', 500);
+    return errorResponse(c, 'Failed to search products', 'PRODUCT_SEARCH_FAILED', 500, error);
   }
 });
 

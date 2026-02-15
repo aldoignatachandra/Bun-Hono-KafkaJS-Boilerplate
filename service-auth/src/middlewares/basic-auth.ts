@@ -1,9 +1,7 @@
 import bcrypt from 'bcrypt';
-import { eq } from 'drizzle-orm';
 import { Context, Next } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { drizzleDb } from '../db/connection';
-import { users } from '../db/schema';
 
 // Extend Hono Context to include the authenticated user
 declare module 'hono' {
@@ -11,6 +9,8 @@ declare module 'hono' {
     userCredentials: {
       id: string;
       email: string;
+      username: string;
+      name: string | null;
       role: 'ADMIN' | 'USER';
     };
   }
@@ -36,16 +36,16 @@ export const basicAuthMiddleware = createMiddleware(async (c: Context, next: Nex
   // Decode Credentials
   const base64Credentials = authHeader.split(' ')[1];
   const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
-  const [email, password] = credentials.split(':');
+  const [identifier, password] = credentials.split(':');
 
-  if (!email || !password) {
+  if (!identifier || !password) {
     return c.json({ message: 'Unauthorized: Invalid credentials format' }, 401);
   }
 
   try {
-    // Verify Credentials against Database
+    // Verify Credentials against Database (Email OR Username)
     const user = await drizzleDb.query.users.findFirst({
-      where: eq(users.email, email),
+      where: (users, { or, eq }) => or(eq(users.email, identifier), eq(users.username, identifier)),
     });
 
     if (!user || !user.password) {
@@ -62,6 +62,8 @@ export const basicAuthMiddleware = createMiddleware(async (c: Context, next: Nex
     c.set('userCredentials', {
       id: user.id,
       email: user.email,
+      username: user.username,
+      name: user.name,
       role: user.role || 'USER',
     });
 

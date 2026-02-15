@@ -9,11 +9,14 @@ export const users = createParanoidTable(
   'users',
   {
     email: varchar('email', { length: 255 }).notNull().unique(),
+    username: varchar('username', { length: 50 }).notNull().unique(),
+    name: varchar('name', { length: 255 }),
     password: text('password').notNull(),
     role: roleEnum('role'),
   },
   table => ({
     roleIdx: index('users_role_idx').on(table.role),
+    usernameIdx: index('users_username_idx').on(table.username),
   })
 );
 
@@ -65,18 +68,24 @@ export type NewUserActivityLog = typeof userActivityLogs.$inferInsert;
 // Enhanced user types with paranoid support
 export interface UserEntity extends BaseParanoidEntity {
   email: string;
+  username: string;
+  name: string | null;
   password: string;
   role: 'ADMIN' | 'USER';
 }
 
 export interface CreateUserRequest {
   email: string;
+  username: string;
+  name?: string;
   password: string;
   role?: 'ADMIN' | 'USER';
 }
 
 export interface UpdateUserRequest {
   email?: string;
+  username?: string;
+  name?: string;
   password?: string;
   role?: 'ADMIN' | 'USER';
 }
@@ -99,6 +108,8 @@ export interface UserQueryOptions {
 export interface UserResponse {
   id: string;
   email: string;
+  username: string;
+  name: string | null;
   role: 'ADMIN' | 'USER';
   createdAt: Date;
   updatedAt: Date;

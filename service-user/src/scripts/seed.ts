@@ -27,6 +27,8 @@ async function seed() {
     await drizzleDb.insert(users).values({
       id: uuidv4(),
       email: adminEmail,
+      username: 'admin',
+      name: 'Admin',
       password: hashedPassword,
       role: 'ADMIN',
       createdAt: new Date(),

@@ -26,6 +26,7 @@ trae-mcp-update.json
 # OS
 .DS_Store
 Thumbs.db
+Library/
 
 # Logs
 logs/

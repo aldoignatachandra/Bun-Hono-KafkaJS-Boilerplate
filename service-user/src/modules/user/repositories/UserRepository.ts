@@ -21,6 +21,8 @@ export class UserRepository {
 
   async create(data: {
     email: string;
+    username: string;
+    name?: string;
     password: string;
     role?: 'ADMIN' | 'USER';
   }): Promise<UserResponse> {
@@ -30,6 +32,11 @@ export class UserRepository {
 
   async findById(id: string, options: UserRepositoryOptions = {}): Promise<UserResponse | null> {
     const user = await this.drizzleUserRepository.findById(id, options.includeDeleted);
+    return user ? this.mapToResponse(user) : null;
+  }
+
+  async findByUsername(username: string): Promise<UserResponse | null> {
+    const user = await this.drizzleUserRepository.findByUsername(username);
     return user ? this.mapToResponse(user) : null;
   }
 

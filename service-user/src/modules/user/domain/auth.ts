@@ -4,6 +4,8 @@ import { z } from 'zod';
 const BaseUserSchema = z.object({
   id: z.string().optional(),
   email: z.string().email('Invalid email format'),
+  username: z.string().min(3, 'Username must be at least 3 characters').max(50),
+  name: z.string().min(1, 'Name is required').max(255).optional(),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   role: z.enum(['ADMIN', 'USER']).optional().default('USER'),
   created_at: z.date().optional(),
@@ -29,10 +31,13 @@ export const UpdateUserSchema = BaseUserSchema.omit({
   id: true,
   created_at: true,
   updated_at: true,
-  email: true, // Email usually shouldn't be updated via simple update, or if so, requires verification
+  email: true,
+  username: true, // Typically username is also immutable or requires checks
 })
   .extend({
     email: z.string().email('Invalid email format').optional(),
+    username: z.string().min(3).max(50).optional(),
+    name: z.string().min(1).max(255).optional(),
     password: z.string().min(6, 'Password must be at least 6 characters').optional(),
     role: z.enum(['ADMIN', 'USER']).optional(),
   })

@@ -31,7 +31,7 @@ export const loginHandler = async (c: Context) => {
 
   if (!user) {
     // Should be caught by middleware, but safe guard
-    return c.json({ message: 'Unauthorized: No credentials provided' }, 401);
+    return errorResponse(c, 'Unauthorized: No credentials provided', 'UNAUTHORIZED', 401);
   }
 
   // 2. Get Request Metadata
@@ -84,17 +84,23 @@ export const loginHandler = async (c: Context) => {
       deviceType,
     });
 
-    return c.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
+    return successResponse(
+      c,
+      {
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+        },
       },
-    });
+      'Login successful'
+    );
   } catch (error) {
     console.error('Login Handler Error:', error);
-    return c.json({ message: 'Failed to process login' }, 500);
+    return errorResponse(c, 'Failed to process login', 'LOGIN_FAILED', 500, error);
   }
 };
 
@@ -107,7 +113,7 @@ export const logoutHandler = async (c: Context) => {
   const user = c.get('user') as JWTPayload;
 
   if (!user || !user.jti) {
-    return c.json({ message: 'Invalid session' }, 401);
+    return errorResponse(c, 'Invalid session', 'INVALID_SESSION', 401);
   }
 
   try {
@@ -122,9 +128,9 @@ export const logoutHandler = async (c: Context) => {
       sessionId: user.jti,
     });
 
-    return c.json({ message: 'Logged out successfully' });
+    return successResponse(c, null, 'Logged out successfully');
   } catch (error) {
     console.error('Logout Handler Error:', error);
-    return c.json({ message: 'Failed to logout' }, 500);
+    return errorResponse(c, 'Failed to logout', 'LOGOUT_FAILED', 500, error);
   }
 };

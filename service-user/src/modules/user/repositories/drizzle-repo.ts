@@ -23,6 +23,15 @@ export class UserRepository {
     return result[0] || null;
   }
 
+  async findByUsername(username: string): Promise<User | null> {
+    const result = await this.db
+      .select()
+      .from(users)
+      .where(and(eq(users.username, username), isNull(users.deletedAt)))
+      .limit(1);
+    return result[0] || null;
+  }
+
   async findAll(
     options: {
       includeDeleted?: boolean;
@@ -36,9 +45,17 @@ export class UserRepository {
   }
 
   async create(data: NewUser): Promise<User> {
-    const existing = await this.findByEmail(data.email);
+    // Check for duplicate email or username
+    const existing = await this.db.query.users.findFirst({
+      where: (users, { or, eq }) =>
+        or(eq(users.email, data.email), eq(users.username, data.username)),
+    });
+
     if (existing) {
-      throw new Error(`User with email ${data.email} already exists`);
+      if (existing.email === data.email) {
+        throw new Error(`User with email ${data.email} already exists`);
+      }
+      throw new Error(`User with username ${data.username} already exists`);
     }
 
     const result = await this.db.insert(users).values(data).returning();
@@ -46,10 +63,26 @@ export class UserRepository {
   }
 
   async update(id: string, data: UpdateUser): Promise<User | null> {
-    if (data.email) {
-      const existing = await this.findByEmail(data.email);
-      if (existing && existing.id && existing.id !== id) {
-        throw new Error(`Email ${data.email} is already in use`);
+    // Check for duplicates if updating email or username
+    if (data.email || data.username) {
+      const existing = await this.db.query.users.findFirst({
+        where: (users, { or, eq, and, ne }) =>
+          and(
+            ne(users.id, id),
+            or(
+              data.email ? eq(users.email, data.email) : undefined,
+              data.username ? eq(users.username, data.username) : undefined
+            )
+          ),
+      });
+
+      if (existing) {
+        if (data.email && existing.email === data.email) {
+          throw new Error(`Email ${data.email} is already in use`);
+        }
+        if (data.username && existing.username === data.username) {
+          throw new Error(`Username ${data.username} is already in use`);
+        }
       }
     }
 

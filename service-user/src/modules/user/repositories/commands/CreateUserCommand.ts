@@ -16,6 +16,8 @@ export class CreateUserCommand {
     // Create user
     const user = await this.userRepository.create({
       email: data.email,
+      username: data.username,
+      name: data.name,
       password: hashedPassword,
       role: data.role || 'USER',
     });

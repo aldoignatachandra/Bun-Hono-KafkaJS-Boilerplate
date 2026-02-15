@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { Container } from 'typedi';
+import { errorResponse, successResponse } from '../../../helpers/api-response';
 import { JWTPayload } from '../../../helpers/types';
 import { auth, requireRole } from '../../../middlewares/auth';
 import { CreateUserSchema } from '../domain/auth';
@@ -36,14 +37,19 @@ userRoutes.post('/admin/users', async c => {
     const createUserCommand = Container.get(CreateUserCommand);
     const user = await createUserCommand.execute(validatedData);
 
-    return c.json({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      createdAt: user.createdAt,
-    });
+    return successResponse(
+      c,
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
+      'User created successfully',
+      201
+    );
   } catch (error) {
-    return c.text('Failed to create user', 400);
+    return errorResponse(c, 'Failed to create user', 'USER_CREATE_FAILED', 400, error);
   }
 });
 
@@ -63,16 +69,13 @@ userRoutes.get('/admin/users', auth, requireRole('ADMIN'), async c => {
       offset,
     });
 
-    return c.json({
-      data: users,
-      meta: {
-        page,
-        limit,
-        count: users.length,
-      },
+    return successResponse(c, users, 'Users fetched successfully', 200, {
+      page,
+      limit,
+      count: users.length,
     });
   } catch (error) {
-    return c.text('Failed to fetch users', 500);
+    return errorResponse(c, 'Failed to fetch users', 'USER_FETCH_FAILED', 500, error);
   }
 });
 
@@ -89,12 +92,12 @@ userRoutes.get('/admin/users/:id', auth, requireRole('ADMIN'), async c => {
       : await getUserQuery.execute(userId);
 
     if (!user) {
-      return c.text('User not found', 404);
+      return errorResponse(c, 'User not found', 'USER_NOT_FOUND', 404);
     }
 
-    return c.json(user);
+    return successResponse(c, user, 'User fetched successfully');
   } catch (error) {
-    return c.text('Failed to fetch user', 500);
+    return errorResponse(c, 'Failed to fetch user', 'USER_FETCH_FAILED', 500, error);
   }
 });
 
@@ -107,16 +110,19 @@ userRoutes.delete('/admin/users/:id', auth, requireRole('ADMIN'), async c => {
     const deleteUserCommand = Container.get(DeleteUserCommand);
     await deleteUserCommand.execute(userId, force);
 
-    return c.json({
-      message: force ? 'User permanently deleted' : 'User soft deleted',
-      userId,
-      force,
-    });
+    return successResponse(
+      c,
+      {
+        userId,
+        force,
+      },
+      force ? 'User permanently deleted' : 'User soft deleted'
+    );
   } catch (error) {
     if (error instanceof Error && error.message === 'User not found') {
-      return c.text('User not found', 404);
+      return errorResponse(c, 'User not found', 'USER_NOT_FOUND', 404);
     }
-    return c.text('Failed to delete user', 500);
+    return errorResponse(c, 'Failed to delete user', 'USER_DELETE_FAILED', 500, error);
   }
 });
 
@@ -128,15 +134,12 @@ userRoutes.post('/admin/users/:id/restore', auth, requireRole('ADMIN'), async c 
     const restoreUserCommand = Container.get(RestoreUserCommand);
     const restoredUser = await restoreUserCommand.execute(userId);
 
-    return c.json({
-      message: 'User restored successfully',
-      user: restoredUser,
-    });
+    return successResponse(c, { user: restoredUser }, 'User restored successfully');
   } catch (error) {
     if (error instanceof Error && error.message === 'User not found') {
-      return c.text('User not found', 404);
+      return errorResponse(c, 'User not found', 'USER_NOT_FOUND', 404);
     }
-    return c.text('Failed to restore user', 500);
+    return errorResponse(c, 'Failed to restore user', 'USER_RESTORE_FAILED', 500, error);
   }
 });
 
@@ -148,14 +151,18 @@ userRoutes.get('/me', auth, async c => {
   const userDetails = await getUserQuery.execute(user.sub);
 
   if (!userDetails) {
-    return c.text('User not found', 404);
+    return errorResponse(c, 'User not found', 'USER_NOT_FOUND', 404);
   }
 
-  return c.json({
-    id: userDetails.id,
-    email: userDetails.email,
-    role: userDetails.role,
-  });
+  return successResponse(
+    c,
+    {
+      id: userDetails.id,
+      email: userDetails.email,
+      role: userDetails.role,
+    },
+    'User info fetched successfully'
+  );
 });
 
 export default userRoutes;

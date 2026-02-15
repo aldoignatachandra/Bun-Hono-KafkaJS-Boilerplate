@@ -54,7 +54,37 @@ This document outlines mandatory technical requirements for backend development.
 - **Logging**:
   - Log errors with context (stack trace + input params) on the server side.
 
-## 5. Authentication & Security
+## 5. API Response Standardization
+
+**Severity: High**
+
+- **Helper Usage**:
+  - Always use `successResponse(c, data, message, statusCode, meta)` for successful responses.
+  - Always use `errorResponse(c, message, code, statusCode, details)` for error responses.
+- **Consistency**:
+  - Do not use `c.json()` or `c.text()` directly for API responses.
+  - Ensure all endpoints return the standardized JSON structure:
+    ```json
+    {
+      "success": true,
+      "message": "Success",
+      "data": { ... },
+      "meta": { ... }
+    }
+    ```
+    or
+    ```json
+    {
+      "success": false,
+      "message": "Error message",
+      "error": {
+        "code": "ERROR_CODE",
+        "details": ...
+      }
+    }
+    ```
+
+## 6. Authentication & Security
 
 **Severity: Critical**
 
