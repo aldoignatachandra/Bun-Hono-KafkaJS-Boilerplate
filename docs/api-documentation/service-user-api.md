@@ -1,32 +1,99 @@
-# Service User API Documentation
+# User Service API Documentation
+
+> **Service Name:** User Service
+>
+> **Version:** 1.0.0
+>
+> **Base URL:** `http://localhost:3101`
+>
+> **Port:** 3101
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Authentication](#authentication)
+- [Endpoints](#endpoints)
+- [Error Codes](#error-codes)
+- [Data Models](#data-models)
+- [Validation Rules](#validation-rules)
+- [Examples](#examples)
+
+---
 
 ## Overview
 
-The User Service handles user management (CRUD), profile retrieval, and administrative tasks. Most write operations are restricted to Admins.
+The User Service is responsible for:
 
-## Base URL
+- **User Management**: CRUD operations for user accounts
+- **Profile Management**: User profile data
+- **Admin Operations**: Administrative user management
+- **Internal API**: Service-to-service user queries
+- **Activity Logging**: User activity tracking
 
-All endpoints are relative to the service base URL (default: `http://localhost:3101`).
+### Key Features
 
-## Response Format
+| Feature               | Description                            |
+| --------------------- | -------------------------------------- |
+| **Soft Delete**       | Users can be soft-deleted and restored |
+| **Role-Based Access** | ADMIN and USER roles                   |
+| **Activity Logging**  | Track user operations                  |
+| **Internal API**      | Service-to-service endpoints           |
+| **Paranoid Mode**     | Configurable soft-delete behavior      |
 
-Standardized JSON response (see Service Auth docs for format).
+---
 
 ## Authentication
 
-All endpoints require a valid JWT token in the header:
-`Authorization: Bearer <token>`
+### 1. JWT Authentication
 
-## Data Validation Rules
+Required for all protected endpoints.
 
-- **Email:** Must be a valid email format. Unique across the system.
-- **Username:** Min 3 chars, Max 50 chars. Unique across the system.
-- **Password:**
-  - Min 8 characters.
-  - At least 1 uppercase letter (`A-Z`).
-  - At least 1 number (`0-9`).
-  - Allowed special chars: `!@#$%^&*()_+-=[]{}|;:,.<>?`
-  - Forbidden chars: `'`, `"`, `` ` ``, `\`, `/` (to prevent injection).
+**Header Format:**
+
+```
+Authorization: Bearer <jwt-token>
+```
+
+**Token Structure:**
+
+```typescript
+{
+  sub: string; // User ID
+  email: string; // User email
+  role: "ADMIN" | "USER";
+  jti: string; // Session ID
+  iat: number; // Issued at
+  exp: number; // Expires at
+}
+```
+
+### 2. Role-Based Authorization
+
+Some endpoints require specific roles:
+
+| Role    | Access Level                                            |
+| ------- | ------------------------------------------------------- |
+| `ADMIN` | Full access to all endpoints including admin operations |
+| `USER`  | Limited to own profile ( `/me` endpoint)                |
+
+### 3. System Authentication
+
+Required for internal API endpoints.
+
+**Header Format:**
+
+```
+Authorization: Basic <base64(SYSTEM_USER:SYSTEM_PASS)>
+```
+
+**Environment Variables:**
+
+```bash
+SYSTEM_USER=admin
+SYSTEM_PASS=admin123
+```
 
 ---
 
@@ -34,181 +101,726 @@ All endpoints require a valid JWT token in the header:
 
 ### 1. Health Check
 
-- **URL:** `/health`
-- **Method:** `GET`
-- **Auth Required:** No
-- **Success Response (200):**
-  ```json
-  {
-    "success": true,
-    "message": "Service is healthy",
-    "data": {
+**Public endpoint** to check service health.
+
+| Attribute         | Value     |
+| ----------------- | --------- |
+| **Method**        | `GET`     |
+| **Path**          | `/health` |
+| **Auth Required** | ❌ No     |
+
+#### Request
+
+```http
+GET /health HTTP/1.1
+Host: localhost:3101
+```
+
+#### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Service is healthy",
+  "data": {
+    "service": "user-service",
+    "environment": "development",
+    "database": "connected",
+    "timestamp": "2026-02-21T10:00:00.000Z"
+  }
+}
+```
+
+#### Error Response (503 Service Unhealthy)
+
+```json
+{
+  "success": false,
+  "message": "Service is unhealthy",
+  "error": {
+    "code": "SERVICE_UNHEALTHY",
+    "details": {
       "service": "user-service",
-      "environment": "development",
-      "database": "connected",
-      "timestamp": "2024-03-20T10:00:00.000Z"
+      "database": "disconnected"
     }
   }
-  ```
+}
+```
+
+---
 
 ### 2. Admin Health Check
 
-Detailed health check including database and Kafka connection status.
+**Protected endpoint** for detailed health monitoring.
 
-- **URL:** `/admin/health`
-- **Method:** `GET`
-- **Auth Required:** Yes (System Basic Auth via `SYSTEM_USER`/`SYSTEM_PASS` env vars)
-- **Success Response (200):**
-  ```json
-  {
-    "success": true,
-    "message": "Admin health check passed",
-    "data": {
-      "service": "user-service",
-      "mode": "admin",
-      "config": {
-        "db": "connected",
-        "kafka": "connected"
-      },
-      "timestamp": "2024-03-20T10:00:00.000Z"
-    }
+| Attribute         | Value           |
+| ----------------- | --------------- |
+| **Method**        | `GET`           |
+| **Path**          | `/admin/health` |
+| **Auth Required** | ✅ System Auth  |
+
+#### Request
+
+```http
+GET /admin/health HTTP/1.1
+Host: localhost:3101
+Authorization: Basic YWRtaW46YWRtaW4xMjM=
+```
+
+#### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Admin health check passed",
+  "data": {
+    "service": "user-service",
+    "mode": "admin",
+    "config": {
+      "db": "connected",
+      "kafka": "connected"
+    },
+    "timestamp": "2026-02-21T10:00:00.000Z"
   }
-  ```
+}
+```
+
+---
 
 ### 3. Get Current User (Me)
 
-Retrieves the profile of the currently authenticated user.
+Returns the profile of the authenticated user.
 
-- **URL:** `/me`
-- **Method:** `GET`
-- **Auth Required:** Yes
-- **Success Response (200):**
-  ```json
-  {
-    "success": true,
-    "message": "User info fetched successfully",
-    "data": {
-      "id": "uuid",
-      "email": "user@example.com",
-      "role": "USER"
-    }
+| Attribute         | Value             |
+| ----------------- | ----------------- |
+| **Method**        | `GET`             |
+| **Path**          | `/me`             |
+| **Auth Required** | ✅ JWT (Any Role) |
+
+#### Request
+
+```http
+GET /me HTTP/1.1
+Host: localhost:3101
+Authorization: Bearer <jwt-token>
+```
+
+#### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "User info fetched successfully",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "username": "johndoe",
+    "role": "USER"
   }
-  ```
+}
+```
+
+#### Error Responses
+
+| Code  | Error Code       | Description              |
+| ----- | ---------------- | ------------------------ |
+| `401` | `UNAUTHORIZED`   | Invalid or missing token |
+| `404` | `USER_NOT_FOUND` | User not found           |
+
+---
 
 ### 4. Create User (Admin Only)
 
 Creates a new user account.
 
-- **URL:** `/admin/users`
-- **Method:** `POST`
-- **Auth Required:** Yes (Role: ADMIN)
-- **Request Body (JSON):**
-  ```json
-  {
-    "email": "newuser@example.com",  // Required. Valid email.
-    "username": "newuser",           // Required. Min 3, Max 50.
-    "password": "Password123!",      // Required. See validation rules.
-    "role": "USER",                  // Optional. "ADMIN" or "USER". Default: "USER".
-    "name": "New User Name"          // Optional. Max 255.
+| Attribute         | Value               |
+| ----------------- | ------------------- |
+| **Method**        | `POST`              |
+| **Path**          | `/admin/users`      |
+| **Auth Required** | ✅ JWT + ADMIN Role |
+
+#### Request
+
+```http
+POST /admin/users HTTP/1.1
+Host: localhost:3101
+Authorization: Bearer <admin-jwt-token>
+Content-Type: application/json
+```
+
+**Request Body:**
+
+```json
+{
+  "email": "newuser@example.com",
+  "username": "newuser",
+  "password": "Password123!",
+  "role": "USER",
+  "name": "New User Name"
+}
+```
+
+#### Response (201 Created)
+
+```json
+{
+  "success": true,
+  "message": "User created successfully",
+  "data": {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
+    "email": "newuser@example.com",
+    "role": "USER",
+    "createdAt": "2026-02-21T10:00:00.000Z"
   }
-  ```
-- **Success Response (201):**
-  ```json
-  {
-    "success": true,
-    "message": "User created successfully",
-    "data": {
-      "id": "uuid",
-      "email": "newuser@example.com",
-      "role": "USER",
-      "createdAt": "..."
-    }
-  }
-  ```
+}
+```
+
+#### Error Responses
+
+| Code  | Error Code           | Description                          |
+| ----- | -------------------- | ------------------------------------ |
+| `400` | `USER_CREATE_FAILED` | Validation error                     |
+| `401` | `UNAUTHORIZED`       | Invalid or missing token             |
+| `403` | `FORBIDDEN`          | Insufficient permissions (not ADMIN) |
+
+#### cURL Example
+
+```bash
+curl -X POST http://localhost:3101/admin/users \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "newuser@example.com",
+    "username": "newuser",
+    "password": "Password123!",
+    "role": "USER",
+    "name": "New User Name"
+  }'
+```
+
+---
 
 ### 5. Get All Users (Admin Only)
 
 Retrieves a paginated list of users.
 
-- **URL:** `/admin/users`
-- **Method:** `GET`
-- **Auth Required:** Yes (Role: ADMIN)
-- **Query Parameters:**
-  - `page`: Page number (default: `1`).
-  - `limit`: Items per page (default: `10`).
-  - `includeDeleted`: `true` to include soft-deleted users (default: `false`).
-- **Success Response (200):**
-  ```json
-  {
-    "success": true,
-    "message": "Users fetched successfully",
-    "data": [
-      {
-        "id": "uuid",
-        "email": "...",
-        "role": "USER",
-        ...
-      }
-    ],
-    "meta": {
-      "page": 1,
-      "limit": 10,
-      "count": 5
+| Attribute         | Value               |
+| ----------------- | ------------------- |
+| **Method**        | `GET`               |
+| **Path**          | `/admin/users`      |
+| **Auth Required** | ✅ JWT + ADMIN Role |
+
+#### Request
+
+```http
+GET /admin/users?page=1&limit=10&includeDeleted=false HTTP/1.1
+Host: localhost:3101
+Authorization: Bearer <admin-jwt-token>
+```
+
+**Query Parameters:**
+
+| Parameter        | Type    | Default | Description                |
+| ---------------- | ------- | ------- | -------------------------- |
+| `page`           | number  | `1`     | Page number                |
+| `limit`          | number  | `10`    | Items per page             |
+| `includeDeleted` | boolean | `false` | Include soft-deleted users |
+
+#### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Users fetched successfully",
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "email": "user@example.com",
+      "username": "johndoe",
+      "name": "John Doe",
+      "role": "USER",
+      "createdAt": "2026-02-21T10:00:00.000Z",
+      "updatedAt": "2026-02-21T10:00:00.000Z",
+      "deletedAt": null
     }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "count": 1
   }
-  ```
+}
+```
+
+---
 
 ### 6. Get User by ID (Admin Only)
 
 Retrieves a specific user's details.
 
-- **URL:** `/admin/users/:id`
-- **Method:** `GET`
-- **Auth Required:** Yes (Role: ADMIN)
-- **Query Parameters:**
-  - `includeDeleted`: `true` to find even if soft-deleted.
-- **Success Response (200):**
-  ```json
-  {
-    "success": true,
-    "message": "User fetched successfully",
-    "data": { ... }
+| Attribute         | Value               |
+| ----------------- | ------------------- |
+| **Method**        | `GET`               |
+| **Path**          | `/admin/users/:id`  |
+| **Auth Required** | ✅ JWT + ADMIN Role |
+
+#### Request
+
+```http
+GET /admin/users/550e8400-e29b-41d4-a716-446655440000?includeDeleted=false HTTP/1.1
+Host: localhost:3101
+Authorization: Bearer <admin-jwt-token>
+```
+
+**Path Parameters:**
+
+| Parameter | Type          | Description |
+| --------- | ------------- | ----------- |
+| `id`      | string (UUID) | User ID     |
+
+**Query Parameters:**
+
+| Parameter        | Type    | Default | Description                |
+| ---------------- | ------- | ------- | -------------------------- |
+| `includeDeleted` | boolean | `false` | Include soft-deleted users |
+
+#### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "User fetched successfully",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "username": "johndoe",
+    "name": "John Doe",
+    "role": "USER",
+    "createdAt": "2026-02-21T10:00:00.000Z",
+    "updatedAt": "2026-02-21T10:00:00.000Z",
+    "deletedAt": null
   }
-  ```
+}
+```
+
+#### Error Responses
+
+| Code  | Error Code       | Description    |
+| ----- | ---------------- | -------------- |
+| `404` | `USER_NOT_FOUND` | User not found |
+
+---
 
 ### 7. Delete User (Admin Only)
 
-Deletes a user. Default is soft delete.
+Deletes a user (soft delete by default).
 
-- **URL:** `/admin/users/:id`
-- **Method:** `DELETE`
-- **Auth Required:** Yes (Role: ADMIN)
-- **Query Parameters:**
-  - `force`: `true` for permanent deletion (hard delete). Default: `false`.
-- **Success Response (200):**
-  ```json
-  {
-    "success": true,
-    "message": "User soft deleted", // or "User permanently deleted"
-    "data": {
-      "userId": "...",
-      "force": false
-    }
+| Attribute         | Value               |
+| ----------------- | ------------------- |
+| **Method**        | `DELETE`            |
+| **Path**          | `/admin/users/:id`  |
+| **Auth Required** | ✅ JWT + ADMIN Role |
+
+#### Request
+
+```http
+DELETE /admin/users/550e8400-e29b-41d4-a716-446655440000?force=false HTTP/1.1
+Host: localhost:3101
+Authorization: Bearer <admin-jwt-token>
+```
+
+**Path Parameters:**
+
+| Parameter | Type          | Description |
+| --------- | ------------- | ----------- |
+| `id`      | string (UUID) | User ID     |
+
+**Query Parameters:**
+
+| Parameter | Type    | Default | Description                      |
+| --------- | ------- | ------- | -------------------------------- |
+| `force`   | boolean | `false` | Permanent deletion (hard delete) |
+
+#### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "User soft deleted",
+  "data": {
+    "userId": "550e8400-e29b-41d4-a716-446655440000",
+    "force": false
   }
-  ```
+}
+```
+
+#### Error Responses
+
+| Code  | Error Code           | Description     |
+| ----- | -------------------- | --------------- |
+| `404` | `USER_NOT_FOUND`     | User not found  |
+| `500` | `USER_DELETE_FAILED` | Deletion failed |
+
+---
 
 ### 8. Restore User (Admin Only)
 
 Restores a soft-deleted user.
 
-- **URL:** `/admin/users/:id/restore`
-- **Method:** `POST`
-- **Auth Required:** Yes (Role: ADMIN)
-- **Success Response (200):**
-  ```json
-  {
-    "success": true,
-    "message": "User restored successfully",
-    "data": { "user": { ... } }
+| Attribute         | Value                      |
+| ----------------- | -------------------------- |
+| **Method**        | `POST`                     |
+| **Path**          | `/admin/users/:id/restore` |
+| **Auth Required** | ✅ JWT + ADMIN Role        |
+
+#### Request
+
+```http
+POST /admin/users/550e8400-e29b-41d4-a716-446655440000/restore HTTP/1.1
+Host: localhost:3101
+Authorization: Bearer <admin-jwt-token>
+```
+
+**Path Parameters:**
+
+| Parameter | Type          | Description |
+| --------- | ------------- | ----------- |
+| `id`      | string (UUID) | User ID     |
+
+#### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "User restored successfully",
+  "data": {
+    "user": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "email": "user@example.com",
+      "username": "johndoe",
+      "name": "John Doe",
+      "role": "USER",
+      "createdAt": "2026-02-21T10:00:00.000Z",
+      "updatedAt": "2026-02-21T10:01:00.000Z"
+    }
   }
-  ```
+}
+```
+
+#### Error Responses
+
+| Code  | Error Code            | Description        |
+| ----- | --------------------- | ------------------ |
+| `404` | `USER_NOT_FOUND`      | User not found     |
+| `500` | `USER_RESTORE_FAILED` | Restoration failed |
+
+---
+
+### 9. Get Oldest User (Internal API)
+
+Returns the oldest active user by role. Used for service-to-service communication (e.g., product seeder).
+
+| Attribute         | Value                        |
+| ----------------- | ---------------------------- |
+| **Method**        | `GET`                        |
+| **Path**          | `/api/internal/users/oldest` |
+| **Auth Required** | ✅ System Auth               |
+
+#### Request
+
+```http
+GET /api/internal/users/oldest?role=USER HTTP/1.1
+Host: localhost:3101
+Authorization: Basic YWRtaW46YWRtaW4xMjM=
+```
+
+**Query Parameters:**
+
+| Parameter | Type   | Default  | Description               |
+| --------- | ------ | -------- | ------------------------- | --------- |
+| `role`    | string | `'USER'` | Filter by role (`'ADMIN'` | `'USER'`) |
+
+#### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Oldest USER user retrieved successfully",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "username": "johndoe",
+    "name": "John Doe",
+    "role": "USER",
+    "createdAt": "2026-02-21T10:00:00.000Z"
+  }
+}
+```
+
+#### Error Responses
+
+| Code  | Error Code                 | Description                     |
+| ----- | -------------------------- | ------------------------------- |
+| `400` | `INVALID_ROLE`             | Invalid role parameter          |
+| `401` | `UNAUTHORIZED`             | Invalid system credentials      |
+| `404` | `USER_NOT_FOUND`           | No user found matching criteria |
+| `500` | `FETCH_OLDEST_USER_FAILED` | Internal server error           |
+
+#### cURL Example
+
+```bash
+curl http://localhost:3101/api/internal/users/oldest?role=USER \
+  -u admin:admin123
+```
+
+---
+
+## Error Codes
+
+| Error Code                 | HTTP Status | Description                     |
+| -------------------------- | ----------- | ------------------------------- |
+| `UNAUTHORIZED`             | 401         | Authentication required         |
+| `FORBIDDEN`                | 403         | Insufficient permissions        |
+| `USER_NOT_FOUND`           | 404         | User does not exist             |
+| `INVALID_ROLE`             | 400         | Invalid role parameter          |
+| `USER_CREATE_FAILED`       | 400         | User creation validation failed |
+| `USER_FETCH_FAILED`        | 500         | Failed to fetch users           |
+| `USER_DELETE_FAILED`       | 500         | User deletion failed            |
+| `USER_RESTORE_FAILED`      | 500         | User restoration failed         |
+| `FETCH_OLDEST_USER_FAILED` | 500         | Failed to fetch oldest user     |
+
+---
+
+## Data Models
+
+### User
+
+```typescript
+interface User {
+  id: string; // UUID
+  email: string; // Unique, valid email
+  username: string; // Unique, 3-50 chars
+  name: string | null; // Optional display name
+  role: "ADMIN" | "USER";
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date; // Soft delete timestamp
+}
+```
+
+### UserResponse
+
+```typescript
+interface UserResponse {
+  id: string;
+  email: string;
+  username: string;
+  name: string | null;
+  role: "ADMIN" | "USER";
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}
+```
+
+### CreateUserRequest
+
+```typescript
+interface CreateUserRequest {
+  email: string; // Required, valid email
+  username: string; // Required, 3-50 chars
+  password: string; // Required, see validation rules
+  role?: "ADMIN" | "USER"; // Optional, default: 'USER'
+  name?: string; // Optional, max 255 chars
+}
+```
+
+### InternalOldestUserResponse
+
+```typescript
+interface InternalOldestUserResponse {
+  id: string;
+  email: string;
+  username: string;
+  name: string | null;
+  role: "ADMIN" | "USER";
+  createdAt: Date;
+}
+```
+
+---
+
+## Validation Rules
+
+### Email
+
+- **Format:** Valid email address
+- **Unique:** Must be unique across all users
+- **Required:** Yes (for user creation)
+
+**Regex Pattern:**
+
+```regex
+/^[^\s@]+@[^\s@]+\.[^\s@]+$/
+```
+
+### Username
+
+- **Minimum Length:** 3 characters
+- **Maximum Length:** 50 characters
+- **Allowed Characters:** Alphanumeric and underscore
+- **Unique:** Must be unique across all users
+- **Required:** Yes (for user creation)
+
+**Regex Pattern:**
+
+```regex
+/^[a-zA-Z0-9_]{3,50}$/
+```
+
+### Password
+
+- **Minimum Length:** 8 characters
+- **Required Characters:**
+  - At least 1 uppercase letter (`A-Z`)
+  - At least 1 number (`0-9`)
+- **Allowed Special Characters:** `!@#$%^&*()_+-=[]{}|;:,.<>?`
+- **Forbidden Characters:** `'`, `"`, `` ` ``, `\`, `/` (injection prevention)
+
+**Validation Pattern:**
+
+```typescript
+// Minimum 8 chars, 1 uppercase, 1 number
+/^(?=.*[A-Z])(?=.*\d).{8,}$/
+
+// Forbidden characters check
+/['"` `\/]/
+```
+
+### Name
+
+- **Maximum Length:** 255 characters
+- **Required:** No
+
+### Role
+
+- **Allowed Values:** `'ADMIN'`, `'USER'`
+- **Default:** `'USER'`
+- **Case Sensitive:** Yes (uppercase)
+
+---
+
+## TypeScript Types
+
+```typescript
+// src/modules/user/domain/schema.ts
+
+export type Role = "ADMIN" | "USER";
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  name: string | null;
+  password: string; // Hashed, never returned in API
+  role: Role;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}
+
+export interface UserResponse {
+  id: string;
+  email: string;
+  username: string;
+  name: string | null;
+  role: Role;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}
+
+export interface CreateUserRequest {
+  email: string;
+  username: string;
+  password: string;
+  role?: Role;
+  name?: string;
+}
+
+export interface UpdateUserRequest {
+  email?: string;
+  username?: string;
+  name?: string;
+  password?: string;
+  role?: Role;
+}
+
+export interface UserQueryOptions {
+  includeDeleted?: boolean;
+  limit?: number;
+  offset?: number;
+}
+```
+
+---
+
+## Usage Examples
+
+### Create User (Admin)
+
+```typescript
+const response = await fetch("http://localhost:3101/admin/users", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${adminToken}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    email: "newuser@example.com",
+    username: "newuser",
+    password: "Password123!",
+    role: "USER",
+    name: "New User",
+  }),
+});
+
+const { data } = await response.json();
+console.log("Created user:", data.id);
+```
+
+### Get Current User
+
+```typescript
+const response = await fetch("http://localhost:3101/me", {
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+
+const { data } = await response.json();
+console.log("Current user:", data.email);
+```
+
+### Internal API: Get Oldest User
+
+```typescript
+const credentials = btoa("admin:admin123");
+
+const response = await fetch(
+  "http://localhost:3101/api/internal/users/oldest?role=USER",
+  {
+    headers: {
+      Authorization: `Basic ${credentials}`,
+    },
+  },
+);
+
+const { data } = await response.json();
+console.log("Oldest user ID:", data.id);
+```
+
+---
+
+**Last Updated:** 2026-02-21
+**Documentation Version:** 1.0.0
