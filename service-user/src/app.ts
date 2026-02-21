@@ -6,6 +6,7 @@ import { configLoader } from './config/loader';
 import { checkDatabaseHealth, drizzleDb } from './db/connection';
 import { errorResponse, successResponse } from './helpers/api-response';
 import { systemAuthMiddleware } from './middlewares/system-auth';
+import internalRoutes from './modules/user/handlers/internal';
 import userRoutes from './modules/user/handlers/user';
 
 const app = new Hono();
@@ -43,6 +44,8 @@ app.get('/admin/health', systemAuthMiddleware, async c => {
 });
 
 // Routes
+// Internal API routes (must be before userRoutes to avoid conflicts)
+app.route('/api/internal', internalRoutes);
 app.route('/', userRoutes);
 
 // Health check endpoint

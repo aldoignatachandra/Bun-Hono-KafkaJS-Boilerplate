@@ -1,11 +1,48 @@
-import { and, eq, gte, isNotNull, isNull, like, lte } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, isNull, like, lte, asc } from 'drizzle-orm';
 import { drizzleDb } from '../../../db/connection';
-import { products, type NewProduct, type Product, type UpdateProduct } from '../domain/schema';
+import {
+  products,
+  type NewProduct,
+  type Product,
+  type UpdateProduct,
+  type PriceRange,
+  type ProductResponse,
+  type ProductQueryOptions,
+} from '../domain/schema';
+import { productAttributes, type NewProductAttribute, type ProductAttribute } from '../domain/schema-attributes';
+import { productVariants, type NewProductVariant, type ProductVariant } from '../domain/schema-variants';
+import type {
+  CreateProductWithVariantsRequest,
+  UpdateProductWithVariantsRequest,
+  CreateAttributeRequest,
+  CreateVariantRequest,
+  AttributeResponse,
+  VariantResponse,
+  ProductWithVariantsResponse,
+} from '../domain/types';
 
 export { type NewProduct, type Product, type UpdateProduct };
 
+// ============================================
+// Type Helper Interfaces
+// ============================================
+
+interface ProductWithRelations {
+  product: Product;
+  attributes: AttributeResponse[];
+  variants: VariantResponse[];
+}
+
+// ============================================
+// Product Repository Class
+// ============================================
+
 export class ProductRepository {
   private db = drizzleDb;
+
+  // ============================================
+  // Basic CRUD Operations
+  // ============================================
 
   async findById(id: string, includeDeleted = false): Promise<Product | null> {
     const where = includeDeleted
@@ -44,6 +81,8 @@ export class ProductRepository {
     onlyDeleted?: boolean;
     limit?: number;
     offset?: number;
+    hasVariant?: boolean;
+    inStock?: boolean;
   }): Promise<Product[]> {
     const {
       ownerId,
@@ -54,6 +93,8 @@ export class ProductRepository {
       onlyDeleted = false,
       limit = 10,
       offset = 0,
+      hasVariant,
+      inStock,
     } = options;
 
     const conditions = [];
@@ -78,6 +119,14 @@ export class ProductRepository {
 
     if (maxPrice !== undefined) {
       conditions.push(lte(products.price, maxPrice));
+    }
+
+    if (hasVariant !== undefined) {
+      conditions.push(eq(products.hasVariant, hasVariant));
+    }
+
+    if (inStock) {
+      conditions.push(gte(products.stock, 1));
     }
 
     return this.db
@@ -123,6 +172,374 @@ export class ProductRepository {
   async restore(id: string): Promise<boolean> {
     await this.db.update(products).set({ deletedAt: null }).where(eq(products.id, id));
     return true;
+  }
+
+  // ============================================
+  // Variant-Aware Operations
+  // ============================================
+
+  async findByIdWithVariants(id: string): Promise<ProductWithVariantsResponse | null> {
+    const product = await this.findById(id);
+    if (!product) return null;
+
+    // Fetch attributes
+    const attributes = await this.db
+      .select()
+      .from(productAttributes)
+      .where(and(eq(productAttributes.productId, id), isNull(productAttributes.deletedAt)));
+
+    const attributesResponse: AttributeResponse[] = attributes.map(a => ({
+      id: a.id,
+      name: a.name,
+      values: a.values as string[],
+      displayOrder: a.displayOrder,
+    }));
+
+    // Fetch variants
+    const variants = await this.db
+      .select()
+      .from(productVariants)
+      .where(and(eq(productVariants.productId, id), isNull(productVariants.deletedAt)));
+
+    const variantsResponse: VariantResponse[] = variants.map(v => ({
+      id: v.id,
+      sku: v.sku,
+      price: v.price,
+      stockQuantity: v.stockQuantity,
+      availableStock: v.stockQuantity - v.stockReserved,
+      isActive: v.isActive,
+      attributeValues: v.attributeValues as Record<string, string>,
+    }));
+
+    return this.formatProductResponse(product, attributesResponse, variantsResponse);
+  }
+
+  async findWithFiltersAndVariants(
+    options: ProductQueryOptions
+  ): Promise<ProductWithVariantsResponse[]> {
+    const conditions = [isNull(products.deletedAt)];
+
+    if (options.ownerId) conditions.push(eq(products.ownerId, options.ownerId));
+    if (options.search) conditions.push(like(products.name, `%${options.search}%`));
+    if (options.hasVariant !== undefined) conditions.push(eq(products.hasVariant, options.hasVariant));
+    if (options.inStock) conditions.push(gte(products.stock, 1));
+    if (options.minPrice !== undefined) conditions.push(gte(products.price, options.minPrice));
+    if (options.maxPrice !== undefined) conditions.push(lte(products.price, options.maxPrice));
+
+    const productList = await this.db
+      .select()
+      .from(products)
+      .where(and(...conditions))
+      .limit(options.limit ?? 10)
+      .offset(options.offset ?? 0);
+
+    if (options.includeVariants) {
+      const results: ProductWithVariantsResponse[] = [];
+      for (const p of productList) {
+        const full = await this.findByIdWithVariants(p.id);
+        if (full) results.push(full);
+      }
+      return results;
+    }
+
+    return productList.map(p => this.formatProductResponse(p, [], []));
+  }
+
+  // ============================================
+  // Create Product with Variants (Transaction)
+  // ============================================
+
+  async createWithVariants(
+    data: CreateProductWithVariantsRequest
+  ): Promise<ProductWithVariantsResponse> {
+    return await this.db.transaction(async (tx) => {
+      // 1. Validate price
+      if (data.price <= 0) {
+        throw new Error('Product price must be greater than 0');
+      }
+
+      // 2. Create product
+      const [product] = await tx
+        .insert(products)
+        .values({
+          name: data.name,
+          price: data.price,
+          ownerId: data.ownerId,
+          stock: data.stock ?? 0,
+          hasVariant: !!(data.variants && data.variants.length > 0),
+        })
+        .returning();
+
+      // 3. Create attributes if provided
+      let attributesResponse: AttributeResponse[] = [];
+      if (data.attributes && data.attributes.length > 0) {
+        const attrs = await tx
+          .insert(productAttributes)
+          .values(
+            data.attributes.map((attr, index) => ({
+              productId: product.id,
+              name: attr.name,
+              values: attr.values,
+              displayOrder: attr.displayOrder ?? index,
+            }))
+          )
+          .returning();
+
+        attributesResponse = attrs.map(a => ({
+          id: a.id,
+          name: a.name,
+          values: a.values as string[],
+          displayOrder: a.displayOrder,
+        }));
+      }
+
+      // 4. Create variants if provided
+      let variantsResponse: VariantResponse[] = [];
+      if (data.variants && data.variants.length > 0) {
+        // Validate variant prices
+        for (const v of data.variants) {
+          if (v.price !== undefined && v.price !== null && v.price <= 0) {
+            throw new Error('Variant price must be greater than 0');
+          }
+        }
+
+        const variants = await tx
+          .insert(productVariants)
+          .values(
+            data.variants.map(v => ({
+              productId: product.id,
+              sku: v.sku,
+              price: v.price ?? null,
+              stockQuantity: v.stock ?? 0,
+              isActive: v.isActive ?? true,
+              attributeValues: v.attributeValues,
+            }))
+          )
+          .returning();
+
+        variantsResponse = variants.map(v => ({
+          id: v.id,
+          sku: v.sku,
+          price: v.price,
+          stockQuantity: v.stockQuantity,
+          availableStock: v.stockQuantity - v.stockReserved,
+          isActive: v.isActive,
+          attributeValues: v.attributeValues as Record<string, string>,
+        }));
+      }
+
+      // 5. Get updated product (trigger may have updated stock)
+      const [updatedProduct] = await tx
+        .select()
+        .from(products)
+        .where(eq(products.id, product.id));
+
+      return this.formatProductResponse(updatedProduct, attributesResponse, variantsResponse);
+    });
+  }
+
+  // ============================================
+  // Update Product with Variants (Full Replacement)
+  // ============================================
+
+  async updateWithVariants(
+    id: string,
+    data: UpdateProductWithVariantsRequest
+  ): Promise<ProductWithVariantsResponse | null> {
+    return await this.db.transaction(async (tx) => {
+      // 1. Check product exists
+      const [existing] = await tx
+        .select()
+        .from(products)
+        .where(and(eq(products.id, id), isNull(products.deletedAt)));
+
+      if (!existing) return null;
+
+      // 2. Prevent direct stock update if has variants
+      if (existing.hasVariant && data.stock !== undefined) {
+        throw new Error('Cannot update stock directly for products with variants');
+      }
+
+      // 3. Validate price
+      if (data.price !== undefined && data.price <= 0) {
+        throw new Error('Product price must be greater than 0');
+      }
+
+      // 4. Update product
+      await tx
+        .update(products)
+        .set({
+          name: data.name ?? existing.name,
+          price: data.price ?? existing.price,
+          ownerId: data.ownerId ?? existing.ownerId,
+          stock: data.stock ?? existing.stock,
+          updatedAt: new Date(),
+        })
+        .where(eq(products.id, id));
+
+      // 5. Replace attributes if provided
+      let attributesResponse: AttributeResponse[] = [];
+      if (data.attributes !== undefined) {
+        // Soft delete existing
+        await tx
+          .update(productAttributes)
+          .set({ deletedAt: new Date() })
+          .where(eq(productAttributes.productId, id));
+
+        // Insert new
+        if (data.attributes.length > 0) {
+          const attrs = await tx
+            .insert(productAttributes)
+            .values(
+              data.attributes.map((attr, index) => ({
+                productId: id,
+                name: attr.name,
+                values: attr.values,
+                displayOrder: attr.displayOrder ?? index,
+              }))
+            )
+            .returning();
+
+          attributesResponse = attrs.map(a => ({
+            id: a.id,
+            name: a.name,
+            values: a.values as string[],
+            displayOrder: a.displayOrder,
+          }));
+        }
+      } else {
+        // Fetch existing
+        const attrs = await tx
+          .select()
+          .from(productAttributes)
+          .where(and(eq(productAttributes.productId, id), isNull(productAttributes.deletedAt)));
+
+        attributesResponse = attrs.map(a => ({
+          id: a.id,
+          name: a.name,
+          values: a.values as string[],
+          displayOrder: a.displayOrder,
+        }));
+      }
+
+      // 6. Replace variants if provided
+      let variantsResponse: VariantResponse[] = [];
+      if (data.variants !== undefined) {
+        // Soft delete existing
+        await tx
+          .update(productVariants)
+          .set({ deletedAt: new Date() })
+          .where(eq(productVariants.productId, id));
+
+        // Insert new
+        if (data.variants.length > 0) {
+          // Validate variant prices
+          for (const v of data.variants) {
+            if (v.price !== undefined && v.price !== null && v.price <= 0) {
+              throw new Error('Variant price must be greater than 0');
+            }
+          }
+
+          const variants = await tx
+            .insert(productVariants)
+            .values(
+              data.variants.map(v => ({
+                productId: id,
+                sku: v.sku,
+                price: v.price ?? null,
+                stockQuantity: v.stock ?? 0,
+                isActive: v.isActive ?? true,
+                attributeValues: v.attributeValues,
+              }))
+            )
+            .returning();
+
+          variantsResponse = variants.map(v => ({
+            id: v.id,
+            sku: v.sku,
+            price: v.price,
+            stockQuantity: v.stockQuantity,
+            availableStock: v.stockQuantity - v.stockReserved,
+            isActive: v.isActive,
+            attributeValues: v.attributeValues as Record<string, string>,
+          }));
+        }
+      } else {
+        // Fetch existing
+        const variants = await tx
+          .select()
+          .from(productVariants)
+          .where(and(eq(productVariants.productId, id), isNull(productVariants.deletedAt)));
+
+        variantsResponse = variants.map(v => ({
+          id: v.id,
+          sku: v.sku,
+          price: v.price,
+          stockQuantity: v.stockQuantity,
+          availableStock: v.stockQuantity - v.stockReserved,
+          isActive: v.isActive,
+          attributeValues: v.attributeValues as Record<string, string>,
+        }));
+      }
+
+      // 7. Get final product state
+      const [finalProduct] = await tx
+        .select()
+        .from(products)
+        .where(eq(products.id, id));
+
+      return this.formatProductResponse(finalProduct, attributesResponse, variantsResponse);
+    });
+  }
+
+  // ============================================
+  // Helper: Format Product Response
+  // ============================================
+
+  private formatProductResponse(
+    product: Product,
+    attributes: AttributeResponse[],
+    variants: VariantResponse[]
+  ): ProductWithVariantsResponse {
+    // Calculate price
+    let price: number | PriceRange = product.price;
+
+    // Calculate price range if has variants
+    if (product.hasVariant && variants.length > 0) {
+      const prices = variants
+        .map(v => v.price)
+        .filter((p): p is number => p !== null);
+
+      if (prices.length > 0) {
+        const min = Math.min(...prices);
+        const max = Math.max(...prices);
+        price = {
+          min,
+          max,
+          display: `$${(min / 100).toFixed(2)} - $${(max / 100).toFixed(2)}`,
+        };
+      }
+    }
+
+    const response: ProductWithVariantsResponse = {
+      id: product.id,
+      name: product.name,
+      price,
+      stock: product.stock,
+      hasVariant: product.hasVariant,
+      ownerId: product.ownerId,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+      deletedAt: product.deletedAt,
+    };
+
+    // Include attributes and variants for variant products
+    if (product.hasVariant) {
+      response.attributes = attributes;
+      response.variants = variants;
+    }
+
+    return response;
   }
 }
 

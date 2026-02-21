@@ -5,6 +5,11 @@ import {
   type Product as ProductResponse,
   type UpdateProduct,
 } from './drizzle-repo';
+import type {
+  CreateProductWithVariantsRequest,
+  UpdateProductWithVariantsRequest,
+  ProductWithVariantsResponse,
+} from '../domain/types';
 
 export interface ProductRepositoryOptions {
   includeDeleted?: boolean;
@@ -12,6 +17,9 @@ export interface ProductRepositoryOptions {
   onlyActive?: boolean;
   limit?: number;
   offset?: number;
+  includeVariants?: boolean;
+  hasVariant?: boolean;
+  inStock?: boolean;
 }
 
 @Service()
@@ -22,15 +30,55 @@ export class ProductRepository {
     this.drizzleProductRepo = new DrizzleProductRepository();
   }
 
-  async create(data: { name: string; price: number; ownerId: string }): Promise<ProductResponse> {
+  async create(data: { name: string; price: number; ownerId: string; stock?: number }): Promise<ProductResponse> {
     return this.drizzleProductRepo.create(data as NewProduct) as Promise<ProductResponse>;
   }
+
+  // ============================================
+  // Variant-Aware Methods
+  // ============================================
+
+  async createWithVariants(
+    data: CreateProductWithVariantsRequest
+  ): Promise<ProductWithVariantsResponse> {
+    return this.drizzleProductRepo.createWithVariants(data);
+  }
+
+  async updateWithVariants(
+    id: string,
+    data: UpdateProductWithVariantsRequest
+  ): Promise<ProductWithVariantsResponse | null> {
+    return this.drizzleProductRepo.updateWithVariants(id, data);
+  }
+
+  async findByIdWithVariants(id: string): Promise<ProductWithVariantsResponse | null> {
+    return this.drizzleProductRepo.findByIdWithVariants(id);
+  }
+
+  async findWithFiltersAndVariants(
+    options: {
+      ownerId?: string;
+      search?: string;
+      hasVariant?: boolean;
+      inStock?: boolean;
+      minPrice?: number;
+      maxPrice?: number;
+      includeVariants?: boolean;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<ProductWithVariantsResponse[]> {
+    return this.drizzleProductRepo.findWithFiltersAndVariants(options);
+  }
+
+  // ============================================
+  // Basic CRUD Operations
+  // ============================================
 
   async findById(
     id: string,
     options: ProductRepositoryOptions = {}
   ): Promise<ProductResponse | null> {
-    // drizzleRepo.findById signature: (id: string, includeDeleted?: boolean)
     const product = await this.drizzleProductRepo.findById(id, options.includeDeleted);
     return product as unknown as ProductResponse | null;
   }
@@ -44,6 +92,8 @@ export class ProductRepository {
     onlyDeleted?: boolean;
     limit?: number;
     offset?: number;
+    hasVariant?: boolean;
+    inStock?: boolean;
   }): Promise<ProductResponse[]> {
     const products = await this.drizzleProductRepo.findWithFilters(options);
     return products as unknown as ProductResponse[];
@@ -78,18 +128,18 @@ export class ProductRepository {
     return this.drizzleProductRepo.softDelete(id);
   }
 
-  // Restore a soft-deleted product
   async restore(id: string): Promise<boolean> {
     return this.drizzleProductRepo.restore(id);
   }
 
-  // Find a product including deleted records (needed for restore operation)
   async findByIdWithDeleted(id: string): Promise<ProductResponse | null> {
     const product = await this.drizzleProductRepo.findById(id, true);
     return product as unknown as ProductResponse | null;
   }
 
-  // Missing methods implemented via in-memory filtering (for boilerplate purposes)
+  // ============================================
+  // Query Methods
+  // ============================================
 
   async findUserProductsOptimized(
     userId: string,
@@ -159,5 +209,34 @@ export class ProductRepository {
     options: ProductRepositoryOptions = {}
   ): Promise<ProductResponse[]> {
     return this.findByPriceRange(range, { ...options, includeDeleted: true });
+  }
+
+  // ============================================
+  // Variant-Specific Query Methods
+  // ============================================
+
+  async findByVariantStatus(
+    hasVariant: boolean,
+    options: ProductRepositoryOptions = {}
+  ): Promise<ProductResponse[]> {
+    return this.findWithFilters({
+      hasVariant,
+      includeDeleted: options.includeDeleted,
+      onlyDeleted: options.onlyDeleted,
+      limit: options.limit,
+      offset: options.offset,
+    });
+  }
+
+  async findInStock(
+    options: ProductRepositoryOptions = {}
+  ): Promise<ProductResponse[]> {
+    return this.findWithFilters({
+      inStock: true,
+      includeDeleted: options.includeDeleted,
+      onlyDeleted: options.onlyDeleted,
+      limit: options.limit,
+      offset: options.offset,
+    });
   }
 }

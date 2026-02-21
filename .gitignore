@@ -23,6 +23,10 @@ trae-mcp-update.json
 .kilocode/
 .github-mcp-setup.sh
 
+# AI/Development Tools (contains personal config, cache, credentials)
+.claude/
+.trae/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -44,6 +48,8 @@ coverage/
 tmp/
 temp/
 
-# Project documentation (keep only /docs/* for GitHub)
+# Project documentation (ignore all /docs except api-documentation)
+docs/
+!docs/api-documentation/
 MCP_SETUP_GUIDE.md
 resources/
