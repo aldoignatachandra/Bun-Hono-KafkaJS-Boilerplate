@@ -1,10 +1,10 @@
 import { Service } from 'typedi';
+import { hashPassword } from '../../../../helpers/password';
+import { RequestMetadata } from '../../../../helpers/request-metadata';
 import { CreateUserInput } from '../../domain/auth';
 import type { UserResponse } from '../../domain/schema';
 import { userCreatedProducer } from '../../events/user-events';
 import { UserRepository } from '../UserRepository';
-import { hashPassword } from '../../../../helpers/password';
-import { RequestMetadata } from '../../../../helpers/request-metadata';
 
 @Service()
 export class CreateUserCommand {

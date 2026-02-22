@@ -15,6 +15,11 @@ export class RestoreUserCommand {
       throw new Error('User not found');
     }
 
+    // Check if user is already active (not deleted)
+    if (!deletedUser.deletedAt) {
+      throw new Error('User is already active');
+    }
+
     // Restore user
     const success = await this.userRepository.restore(id);
     if (!success) {

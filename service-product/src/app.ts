@@ -4,7 +4,7 @@ import { logger } from 'hono/logger';
 import { Container } from 'typedi';
 import { configLoader } from './config/loader';
 import { checkDatabaseHealth } from './db/connection';
-import { successResponse, errorResponse } from './helpers/api-response';
+import { errorResponse, successResponse } from './helpers/api-response';
 import { systemAuthMiddleware } from './middlewares/system-auth';
 import productRoutes from './modules/product/handlers/product';
 
@@ -60,15 +60,19 @@ app.get('/health', async c => {
 // Admin/System Routes (Protected by System Basic Auth)
 app.get('/admin/health', systemAuthMiddleware, async c => {
   const dbHealth = await checkDatabaseHealth();
-  return successResponse(c, {
-    service: 'product-service',
-    mode: 'admin',
-    config: {
-      db: dbHealth ? 'connected' : 'disconnected',
-      kafka: 'connected', // Assuming Kafka is connected if service is running, or add check
+  return successResponse(
+    c,
+    {
+      service: 'product-service',
+      mode: 'admin',
+      config: {
+        db: dbHealth ? 'connected' : 'disconnected',
+        kafka: 'connected', // Assuming Kafka is connected if service is running, or add check
+      },
+      timestamp: new Date().toISOString(),
     },
-    timestamp: new Date().toISOString(),
-  }, 'Admin health check passed');
+    'Admin health check passed'
+  );
 });
 
 export default app;

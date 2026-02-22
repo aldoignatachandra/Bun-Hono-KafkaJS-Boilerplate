@@ -46,7 +46,7 @@ export const errorResponse = (
     message,
     error: {
       code,
-      details,
+      details: details instanceof Error ? { message: details.message } : details,
     },
   };
   return c.json(response, statusCode);

@@ -51,6 +51,7 @@ userRoutes.post('/admin/users', async c => {
       201
     );
   } catch (error) {
+    console.log(error);
     return errorResponse(c, 'Failed to create user', 'USER_CREATE_FAILED', 400, error);
   }
 });
@@ -61,6 +62,7 @@ userRoutes.get('/admin/users', auth, requireRole('ADMIN'), async c => {
     const page = parseInt(c.req.query('page') || '1');
     const limit = parseInt(c.req.query('limit') || '10');
     const includeDeleted = c.req.query('includeDeleted') === 'true';
+    const search = c.req.query('search');
 
     const offset = (page - 1) * limit;
 
@@ -69,12 +71,14 @@ userRoutes.get('/admin/users', auth, requireRole('ADMIN'), async c => {
       includeDeleted,
       limit,
       offset,
+      search,
     });
 
     return successResponse(c, users, 'Users fetched successfully', 200, {
       page,
       limit,
       count: users.length,
+      search,
     });
   } catch (error) {
     return errorResponse(c, 'Failed to fetch users', 'USER_FETCH_FAILED', 500, error);
@@ -108,9 +112,10 @@ userRoutes.delete('/admin/users/:id', auth, requireRole('ADMIN'), async c => {
   try {
     const userId = c.req.param('id');
     const force = c.req.query('force') === 'true';
+    const currentUser = c.get('user') as JWTPayload;
 
     const deleteUserCommand = Container.get(DeleteUserCommand);
-    await deleteUserCommand.execute(userId, force);
+    await deleteUserCommand.execute(userId, currentUser, force);
 
     return successResponse(
       c,
@@ -121,8 +126,19 @@ userRoutes.delete('/admin/users/:id', auth, requireRole('ADMIN'), async c => {
       force ? 'User permanently deleted' : 'User soft deleted'
     );
   } catch (error) {
-    if (error instanceof Error && error.message === 'User not found') {
-      return errorResponse(c, 'User not found', 'USER_NOT_FOUND', 404);
+    if (error instanceof Error) {
+      if (error.message === 'User not found') {
+        return errorResponse(c, 'User not found', 'USER_NOT_FOUND', 404);
+      }
+      if (error.message === 'User already deleted') {
+        return errorResponse(c, 'User already deleted', 'USER_ALREADY_DELETED', 400);
+      }
+      if (error.message === 'Cannot delete yourself') {
+        return errorResponse(c, 'Cannot delete yourself', 'USER_DELETE_FORBIDDEN', 403);
+      }
+      if (error.message === 'Cannot delete other admins') {
+        return errorResponse(c, 'Cannot delete other admins', 'USER_DELETE_FORBIDDEN', 403);
+      }
     }
     return errorResponse(c, 'Failed to delete user', 'USER_DELETE_FAILED', 500, error);
   }
@@ -138,8 +154,13 @@ userRoutes.post('/admin/users/:id/restore', auth, requireRole('ADMIN'), async c 
 
     return successResponse(c, { user: restoredUser }, 'User restored successfully');
   } catch (error) {
-    if (error instanceof Error && error.message === 'User not found') {
-      return errorResponse(c, 'User not found', 'USER_NOT_FOUND', 404);
+    if (error instanceof Error) {
+      if (error.message === 'User not found') {
+        return errorResponse(c, 'User not found', 'USER_NOT_FOUND', 404);
+      }
+      if (error.message === 'User is already active') {
+        return errorResponse(c, 'User is already active', 'USER_ALREADY_ACTIVE', 400);
+      }
     }
     return errorResponse(c, 'Failed to restore user', 'USER_RESTORE_FAILED', 500, error);
   }

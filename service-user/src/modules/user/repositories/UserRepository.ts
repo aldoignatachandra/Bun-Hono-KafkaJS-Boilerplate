@@ -9,6 +9,7 @@ export interface UserResponseWithPassword extends UserResponse {
 
 export interface UserRepositoryOptions {
   includeDeleted?: boolean;
+  search?: string;
 }
 
 @Service()
@@ -94,6 +95,7 @@ export class UserRepository {
       includeDeleted: options.includeDeleted,
       limit: options.limit,
       offset: options.offset,
+      search: options.search,
     });
     return users.map(user => this.mapToResponse(user));
   }

@@ -314,6 +314,7 @@ X-Device-Type: mobile
 | `401` | `UNAUTHORIZED`    | Missing Authorization header |
 | `401` | `INVALID_TOKEN`   | Invalid token format         |
 | `401` | `SESSION_INVALID` | Session invalid or expired   |
+| `401` | `INVALID_SESSION` | Session ID missing in token  |
 | `500` | `LOGOUT_FAILED`   | Internal server error        |
 
 #### cURL Example
@@ -365,6 +366,7 @@ Host: localhost:3100
 | `INVALID_CREDENTIALS` | 401         | Wrong email/username or password  |
 | `INVALID_TOKEN`       | 401         | Malformed or invalid JWT          |
 | `SESSION_INVALID`     | 401         | Session does not exist or expired |
+| `INVALID_SESSION`     | 401         | Session ID missing in token       |
 | `SERVICE_UNHEALTHY`   | 503         | Service health check failed       |
 | `LOGIN_FAILED`        | 500         | Login operation failed            |
 | `LOGOUT_FAILED`       | 500         | Logout operation failed           |
@@ -585,5 +587,5 @@ components:
 
 ---
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-02-22
 **Documentation Version:** 1.0.0

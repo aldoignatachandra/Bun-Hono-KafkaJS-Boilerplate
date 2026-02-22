@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
 import { drizzleDb } from '../../../db/connection';
 import { users, type NewUser, type UpdateUser, type User } from '../domain/schema';
 
@@ -37,10 +37,26 @@ export class UserRepository {
       includeDeleted?: boolean;
       limit?: number;
       offset?: number;
+      search?: string;
     } = {}
   ): Promise<User[]> {
-    const { includeDeleted = false, limit = 10, offset = 0 } = options;
-    const where = includeDeleted ? undefined : isNull(users.deletedAt);
+    const { includeDeleted = false, limit = 10, offset = 0, search } = options;
+
+    const conditions = [includeDeleted ? undefined : isNull(users.deletedAt)];
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      conditions.push(
+        or(
+          ilike(users.email, searchPattern),
+          ilike(users.username, searchPattern),
+          ilike(users.name, searchPattern)
+        )
+      );
+    }
+
+    const where = and(...conditions);
+
     return this.db.select().from(users).where(where).limit(limit).offset(offset);
   }
 

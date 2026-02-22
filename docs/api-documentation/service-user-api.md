@@ -313,18 +313,19 @@ Retrieves a paginated list of users.
 #### Request
 
 ```http
-GET /admin/users?page=1&limit=10&includeDeleted=false HTTP/1.1
+GET /admin/users?page=1&limit=10&includeDeleted=false&search=john HTTP/1.1
 Host: localhost:3101
 Authorization: Bearer <admin-jwt-token>
 ```
 
 **Query Parameters:**
 
-| Parameter        | Type    | Default | Description                |
-| ---------------- | ------- | ------- | -------------------------- |
-| `page`           | number  | `1`     | Page number                |
-| `limit`          | number  | `10`    | Items per page             |
-| `includeDeleted` | boolean | `false` | Include soft-deleted users |
+| Parameter        | Type    | Default | Description                                                       |
+| ---------------- | ------- | ------- | ----------------------------------------------------------------- |
+| `page`           | number  | `1`     | Page number                                                       |
+| `limit`          | number  | `10`    | Items per page                                                    |
+| `includeDeleted` | boolean | `false` | Include soft-deleted users                                        |
+| `search`         | string  | -       | Filter by `email`, `username`, or `name` (case-insensitive ILIKE) |
 
 #### Response (200 OK)
 
@@ -347,7 +348,8 @@ Authorization: Bearer <admin-jwt-token>
   "meta": {
     "page": 1,
     "limit": 10,
-    "count": 1
+    "count": 1,
+    "search": "john"
   }
 }
 ```
@@ -415,6 +417,12 @@ Authorization: Bearer <admin-jwt-token>
 
 Deletes a user (soft delete by default).
 
+> **Safety Checks:**
+>
+> - Cannot delete yourself.
+> - Cannot delete other admins.
+> - Cannot soft-delete an already deleted user.
+
 | Attribute         | Value               |
 | ----------------- | ------------------- |
 | **Method**        | `DELETE`            |
@@ -456,16 +464,22 @@ Authorization: Bearer <admin-jwt-token>
 
 #### Error Responses
 
-| Code  | Error Code           | Description     |
-| ----- | -------------------- | --------------- |
-| `404` | `USER_NOT_FOUND`     | User not found  |
-| `500` | `USER_DELETE_FAILED` | Deletion failed |
+| Code  | Error Code              | Description                                       |
+| ----- | ----------------------- | ------------------------------------------------- |
+| `400` | `USER_ALREADY_DELETED`  | User is already soft-deleted (when `force=false`) |
+| `403` | `USER_DELETE_FORBIDDEN` | Cannot delete self or other admins                |
+| `404` | `USER_NOT_FOUND`        | User not found                                    |
+| `500` | `USER_DELETE_FAILED`    | Deletion failed                                   |
 
 ---
 
 ### 8. Restore User (Admin Only)
 
 Restores a soft-deleted user.
+
+> **Idempotency:**
+>
+> - Returns error if user is already active.
 
 | Attribute         | Value                      |
 | ----------------- | -------------------------- |
@@ -509,10 +523,11 @@ Authorization: Bearer <admin-jwt-token>
 
 #### Error Responses
 
-| Code  | Error Code            | Description        |
-| ----- | --------------------- | ------------------ |
-| `404` | `USER_NOT_FOUND`      | User not found     |
-| `500` | `USER_RESTORE_FAILED` | Restoration failed |
+| Code  | Error Code            | Description            |
+| ----- | --------------------- | ---------------------- |
+| `400` | `USER_ALREADY_ACTIVE` | User is already active |
+| `404` | `USER_NOT_FOUND`      | User not found         |
+| `500` | `USER_RESTORE_FAILED` | Restoration failed     |
 
 ---
 
@@ -577,17 +592,20 @@ curl http://localhost:3101/api/internal/users/oldest?role=USER \
 
 ## Error Codes
 
-| Error Code                 | HTTP Status | Description                     |
-| -------------------------- | ----------- | ------------------------------- |
-| `UNAUTHORIZED`             | 401         | Authentication required         |
-| `FORBIDDEN`                | 403         | Insufficient permissions        |
-| `USER_NOT_FOUND`           | 404         | User does not exist             |
-| `INVALID_ROLE`             | 400         | Invalid role parameter          |
-| `USER_CREATE_FAILED`       | 400         | User creation validation failed |
-| `USER_FETCH_FAILED`        | 500         | Failed to fetch users           |
-| `USER_DELETE_FAILED`       | 500         | User deletion failed            |
-| `USER_RESTORE_FAILED`      | 500         | User restoration failed         |
-| `FETCH_OLDEST_USER_FAILED` | 500         | Failed to fetch oldest user     |
+| Error Code                 | HTTP Status | Description                       |
+| -------------------------- | ----------- | --------------------------------- |
+| `UNAUTHORIZED`             | 401         | Authentication required           |
+| `FORBIDDEN`                | 403         | Insufficient permissions          |
+| `USER_NOT_FOUND`           | 404         | User does not exist               |
+| `INVALID_ROLE`             | 400         | Invalid role parameter            |
+| `USER_CREATE_FAILED`       | 400         | User creation validation failed   |
+| `USER_FETCH_FAILED`        | 500         | Failed to fetch users             |
+| `USER_DELETE_FAILED`       | 500         | User deletion failed              |
+| `USER_RESTORE_FAILED`      | 500         | User restoration failed           |
+| `FETCH_OLDEST_USER_FAILED` | 500         | Failed to fetch oldest user       |
+| `USER_ALREADY_DELETED`     | 400         | User already soft-deleted         |
+| `USER_DELETE_FORBIDDEN`    | 403         | Cannot delete self or other admin |
+| `USER_ALREADY_ACTIVE`      | 400         | User already active (restoration) |
 
 ---
 
@@ -760,6 +778,7 @@ export interface UserQueryOptions {
   includeDeleted?: boolean;
   limit?: number;
   offset?: number;
+  search?: string;
 }
 ```
 
@@ -822,5 +841,5 @@ console.log("Oldest user ID:", data.id);
 
 ---
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-02-22
 **Documentation Version:** 1.0.0
