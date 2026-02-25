@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { CreateUserSchema, LoginSchema, UpdateUserSchema } from '../../../../src/modules/user/domain/auth';
+import {
+  CreateUserSchema,
+  LoginSchema,
+  UpdateUserSchema,
+} from '../../../../src/modules/user/domain/auth';
 
 describe('user auth schema', () => {
   it('validates login schema', () => {

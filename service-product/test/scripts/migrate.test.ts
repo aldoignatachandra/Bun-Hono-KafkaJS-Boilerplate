@@ -36,7 +36,7 @@ describe('migrate script', () => {
     const { runMigrations } = await modulePromise;
     await runMigrations();
     const args = (postgresFactory as unknown as { mock: { calls: unknown[][] } }).mock.calls[0] as [
-      string
+      string,
     ];
     expect(args[0]).not.toContain('schema=');
     expect(migrateMock).toHaveBeenCalled();

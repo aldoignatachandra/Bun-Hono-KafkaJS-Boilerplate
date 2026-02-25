@@ -25,13 +25,13 @@ export const auth = createMiddleware(async (c: Context, next) => {
     const payload = jwt.verify(token, secret) as ExtendedJWTPayload;
 
     if (!payload.jti) {
-       return c.json({ message: 'Unauthorized: Invalid token structure' }, 401);
+      return c.json({ message: 'Unauthorized: Invalid token structure' }, 401);
     }
 
     // Note: service-product does not have direct access to user_sessions table (separate DB/Service).
     // Ideally, we would make an HTTP call to service-auth/verify or check a shared Redis.
     // For this boilerplate, we trust the signature for now, OR we could duplicate the session table check if using shared DB.
-    // Given the prompt "best boilerplate", we should implement the check if possible, but without shared DB access code here, 
+    // Given the prompt "best boilerplate", we should implement the check if possible, but without shared DB access code here,
     // we'll rely on the strong signature and short expiration.
     // TODO: Implement Inter-Service Session Check via gRPC or HTTP
 

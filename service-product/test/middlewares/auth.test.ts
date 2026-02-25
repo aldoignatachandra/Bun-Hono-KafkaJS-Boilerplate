@@ -15,7 +15,10 @@ const configPromise = import('../../src/config/loader');
 
 type JsonFn = (data: unknown, status?: number) => unknown;
 
-const createContext = (authorization?: string, getValues: Record<string, unknown> = {}): Context => {
+const createContext = (
+  authorization?: string,
+  getValues: Record<string, unknown> = {}
+): Context => {
   const json = mock((data: unknown, status?: number) => ({ data, status })) as unknown as JsonFn;
   const set = mock((_key: string, _value: unknown) => undefined);
   const get = mock((key: string) => getValues[key]);

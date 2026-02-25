@@ -7,7 +7,12 @@ describe('Drizzle ProductRepository', () => {
     const byId = await repo.findById('p1');
     const byOwner = await repo.findByOwnerId('o1');
     const all = await repo.findAll();
-    const filtered = await repo.findWithFilters({ ownerId: 'o1', search: 'Item', limit: 1, offset: 0 });
+    const filtered = await repo.findWithFilters({
+      ownerId: 'o1',
+      search: 'Item',
+      limit: 1,
+      offset: 0,
+    });
     expect(byId?.id).toBe('p1');
     expect(Array.isArray(byOwner)).toBe(true);
     expect(Array.isArray(all)).toBe(true);

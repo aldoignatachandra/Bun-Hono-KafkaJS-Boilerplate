@@ -32,14 +32,10 @@ describe('bun patches', () => {
     global.setTimeout(() => {}, -5);
     global.setInterval(() => {}, -10);
 
-    const timeoutArgs = (setTimeoutSpy as unknown as { mock: { calls: unknown[][] } }).mock.calls[0] as [
-      Parameters<typeof setTimeout>[0],
-      number
-    ];
-    const intervalArgs = (setIntervalSpy as unknown as { mock: { calls: unknown[][] } }).mock.calls[0] as [
-      Parameters<typeof setInterval>[0],
-      number
-    ];
+    const timeoutArgs = (setTimeoutSpy as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0] as [Parameters<typeof setTimeout>[0], number];
+    const intervalArgs = (setIntervalSpy as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0] as [Parameters<typeof setInterval>[0], number];
 
     expect(timeoutArgs[1]).toBe(1);
     expect(intervalArgs[1]).toBe(1);

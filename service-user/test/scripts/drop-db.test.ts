@@ -8,10 +8,7 @@ process.env.PORT = process.env.PORT ?? '3300';
 process.env.SYSTEM_USER = process.env.SYSTEM_USER ?? 'system';
 process.env.SYSTEM_PASS = process.env.SYSTEM_PASS ?? 'system';
 
-type SqlFunction = ((
-  strings: TemplateStringsArray,
-  ...values: unknown[]
-) => Promise<unknown[]>) & {
+type SqlFunction = ((strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown[]>) & {
   unsafe: (query: string) => Promise<void>;
   end: () => Promise<void>;
 };

@@ -479,7 +479,7 @@ export class ProductRepository {
         const processedSkuSet = new Set<string>();
 
         const variantsToInsert: any[] = [];
-        
+
         // Validate and Prepare Ops
         for (const v of data.variants) {
           if (v.price !== undefined && v.price !== null && v.price <= 0) {
@@ -489,7 +489,7 @@ export class ProductRepository {
           if (existingVariantMap.has(v.sku)) {
             // Update existing variant (restore if deleted)
             const existing = existingVariantMap.get(v.sku)!;
-            
+
             await tx
               .update(productVariants)
               .set({
@@ -501,7 +501,7 @@ export class ProductRepository {
                 updatedAt: new Date(),
               })
               .where(eq(productVariants.id, existing.id));
-            
+
             processedSkuSet.add(v.sku);
           } else {
             // Insert new variant
@@ -524,13 +524,20 @@ export class ProductRepository {
 
         // Execute Soft Delete for removed variants
         // Identify variants that exist in DB but are NOT in the input list
-        const variantsToDelete = existingVariants.filter(v => !processedSkuSet.has(v.sku) && !v.deletedAt);
-        
+        const variantsToDelete = existingVariants.filter(
+          v => !processedSkuSet.has(v.sku) && !v.deletedAt
+        );
+
         if (variantsToDelete.length > 0) {
           await tx
             .update(productVariants)
             .set({ deletedAt: new Date() })
-            .where(inArray(productVariants.id, variantsToDelete.map(v => v.id)));
+            .where(
+              inArray(
+                productVariants.id,
+                variantsToDelete.map(v => v.id)
+              )
+            );
         }
 
         // Fetch final active variants for response

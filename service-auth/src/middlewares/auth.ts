@@ -28,7 +28,7 @@ export const auth = createMiddleware(async (c: Context, next) => {
     const payload = jwt.verify(token, secret) as ExtendedJWTPayload;
 
     if (!payload.jti) {
-       return c.json({ message: 'Unauthorized: Invalid token structure' }, 401);
+      return c.json({ message: 'Unauthorized: Invalid token structure' }, 401);
     }
 
     // 2. Stateful Verification (Session DB Check)

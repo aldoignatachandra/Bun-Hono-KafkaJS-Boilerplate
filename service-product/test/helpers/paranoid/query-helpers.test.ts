@@ -10,7 +10,9 @@ describe('ParanoidQueryBuilder', () => {
 
   it('combines custom and paranoid where clauses', () => {
     const table = { deletedAt: 'deleted_at' } as unknown as { deletedAt: string };
-    const clause = ParanoidQueryBuilder.combineWithCustomWhere(table, undefined, { onlyActive: true });
+    const clause = ParanoidQueryBuilder.combineWithCustomWhere(table, undefined, {
+      onlyActive: true,
+    });
     expect(clause).toBeDefined();
   });
 

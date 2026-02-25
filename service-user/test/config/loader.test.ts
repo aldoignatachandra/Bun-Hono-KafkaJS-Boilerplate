@@ -24,8 +24,8 @@ describe('config loader', () => {
     const { configLoader } = await configPromise;
     const env = configLoader.getEnvironment();
     expect(typeof env).toBe('string');
-    expect(configLoader.isDevelopment() || configLoader.isStaging() || configLoader.isProduction()).toBe(
-      true
-    );
+    expect(
+      configLoader.isDevelopment() || configLoader.isStaging() || configLoader.isProduction()
+    ).toBe(true);
   });
 });

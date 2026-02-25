@@ -42,7 +42,7 @@ const ConfigSchema = z.object({
     clientId: z.string(),
     brokers: z.union([
       z.array(z.string()),
-      z.string().transform(s => s.split(',').map(b => b.trim()))
+      z.string().transform(s => s.split(',').map(b => b.trim())),
     ]),
     ssl: z.boolean(),
     sasl: z

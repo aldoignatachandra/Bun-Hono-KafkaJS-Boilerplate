@@ -123,9 +123,9 @@ describe('system auth middleware', () => {
       };
     }
     const security = config.security;
-    const creds = Buffer.from(`${security.systemAuth?.username}:${security.systemAuth?.password}`).toString(
-      'base64'
-    );
+    const creds = Buffer.from(
+      `${security.systemAuth?.username}:${security.systemAuth?.password}`
+    ).toString('base64');
     const c = createContext(`Basic ${creds}`);
     const next = mock(async () => undefined);
     const { systemAuthMiddleware } = await middlewarePromise;

@@ -71,44 +71,32 @@
       "indexes": {
         "products_deleted_at_idx": {
           "name": "products_deleted_at_idx",
-          "columns": [
-            "deleted_at"
-          ],
+          "columns": ["deleted_at"],
           "isUnique": false
         },
         "products_owner_id_idx": {
           "name": "products_owner_id_idx",
-          "columns": [
-            "owner_id"
-          ],
+          "columns": ["owner_id"],
           "isUnique": false
         },
         "products_name_idx": {
           "name": "products_name_idx",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": false
         },
         "products_price_idx": {
           "name": "products_price_idx",
-          "columns": [
-            "price"
-          ],
+          "columns": ["price"],
           "isUnique": false
         },
         "products_has_variant_idx": {
           "name": "products_has_variant_idx",
-          "columns": [
-            "has_variant"
-          ],
+          "columns": ["has_variant"],
           "isUnique": false
         },
         "products_stock_idx": {
           "name": "products_stock_idx",
-          "columns": [
-            "stock"
-          ],
+          "columns": ["stock"],
           "isUnique": false
         }
       },
@@ -176,24 +164,17 @@
       "indexes": {
         "product_attributes_deleted_at_idx": {
           "name": "product_attributes_deleted_at_idx",
-          "columns": [
-            "deleted_at"
-          ],
+          "columns": ["deleted_at"],
           "isUnique": false
         },
         "product_attributes_product_id_idx": {
           "name": "product_attributes_product_id_idx",
-          "columns": [
-            "product_id"
-          ],
+          "columns": ["product_id"],
           "isUnique": false
         },
         "product_attributes_product_id_name_idx": {
           "name": "product_attributes_product_id_name_idx",
-          "columns": [
-            "product_id",
-            "name"
-          ],
+          "columns": ["product_id", "name"],
           "isUnique": false
         }
       },
@@ -202,12 +183,8 @@
           "name": "product_attributes_product_id_products_id_fk",
           "tableFrom": "product_attributes",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -295,23 +272,17 @@
       "indexes": {
         "product_variants_deleted_at_idx": {
           "name": "product_variants_deleted_at_idx",
-          "columns": [
-            "deleted_at"
-          ],
+          "columns": ["deleted_at"],
           "isUnique": false
         },
         "product_variants_product_id_idx": {
           "name": "product_variants_product_id_idx",
-          "columns": [
-            "product_id"
-          ],
+          "columns": ["product_id"],
           "isUnique": false
         },
         "product_variants_is_active_idx": {
           "name": "product_variants_is_active_idx",
-          "columns": [
-            "is_active"
-          ],
+          "columns": ["is_active"],
           "isUnique": false
         }
       },
@@ -320,12 +291,8 @@
           "name": "product_variants_product_id_products_id_fk",
           "tableFrom": "product_variants",
           "tableTo": "products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -335,9 +302,7 @@
         "product_variants_sku_unique": {
           "name": "product_variants_sku_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "sku"
-          ]
+          "columns": ["sku"]
         }
       }
     }
