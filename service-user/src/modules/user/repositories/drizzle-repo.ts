@@ -1,4 +1,4 @@
-import { and, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { drizzleDb } from '../../../db/connection';
 import { users, type NewUser, type UpdateUser, type User } from '../domain/schema';
 
@@ -39,7 +39,7 @@ export class UserRepository {
       offset?: number;
       search?: string;
     } = {}
-  ): Promise<User[]> {
+  ): Promise<{ data: User[]; total: number }> {
     const { includeDeleted = false, limit = 10, offset = 0, search } = options;
 
     const conditions = [includeDeleted ? undefined : isNull(users.deletedAt)];
@@ -57,7 +57,16 @@ export class UserRepository {
 
     const where = and(...conditions);
 
-    return this.db.select().from(users).where(where).limit(limit).offset(offset);
+    // Get total count
+    const [countResult] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(users)
+      .where(where);
+    const total = Number(countResult?.count || 0);
+
+    const data = await this.db.select().from(users).where(where).limit(limit).offset(offset);
+
+    return { data, total };
   }
 
   async create(data: NewUser): Promise<User> {

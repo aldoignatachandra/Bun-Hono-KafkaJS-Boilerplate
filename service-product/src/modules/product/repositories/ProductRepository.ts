@@ -70,7 +70,7 @@ export class ProductRepository {
     includeVariants?: boolean;
     limit?: number;
     offset?: number;
-  }): Promise<ProductWithVariantsResponse[]> {
+  }): Promise<{ data: ProductWithVariantsResponse[]; total: number }> {
     return this.drizzleProductRepo.findWithFiltersAndVariants(options);
   }
 
@@ -97,15 +97,15 @@ export class ProductRepository {
     offset?: number;
     hasVariant?: boolean;
     inStock?: boolean;
-  }): Promise<ProductResponse[]> {
-    const products = await this.drizzleProductRepo.findWithFilters(options);
-    return products as unknown as ProductResponse[];
+  }): Promise<{ data: ProductResponse[]; total: number }> {
+    const { data, total } = await this.drizzleProductRepo.findWithFilters(options);
+    return { data: data as unknown as ProductResponse[], total };
   }
 
   async findByOwner(
     ownerId: string,
     options: ProductRepositoryOptions = {}
-  ): Promise<ProductResponse[]> {
+  ): Promise<{ data: ProductResponse[]; total: number }> {
     return this.findWithFilters({
       ownerId,
       includeDeleted: options.includeDeleted,
@@ -147,25 +147,27 @@ export class ProductRepository {
   async findUserProductsOptimized(
     userId: string,
     options: ProductRepositoryOptions = {}
-  ): Promise<ProductResponse[]> {
+  ): Promise<{ data: ProductResponse[]; total: number }> {
     return this.findByOwner(userId, options);
   }
 
   async findDeletedByOwner(
     ownerId: string,
     options: ProductRepositoryOptions = {}
-  ): Promise<ProductResponse[]> {
+  ): Promise<{ data: ProductResponse[]; total: number }> {
     return this.findByOwner(ownerId, { ...options, onlyDeleted: true });
   }
 
   async findByOwnerWithDeleted(
     ownerId: string,
     options: ProductRepositoryOptions = {}
-  ): Promise<ProductResponse[]> {
+  ): Promise<{ data: ProductResponse[]; total: number }> {
     return this.findByOwner(ownerId, { ...options, includeDeleted: true });
   }
 
-  async findDeletedOnly(options: ProductRepositoryOptions = {}): Promise<ProductResponse[]> {
+  async findDeletedOnly(
+    options: ProductRepositoryOptions = {}
+  ): Promise<{ data: ProductResponse[]; total: number }> {
     return this.findWithFilters({
       onlyDeleted: true,
       limit: options.limit,
@@ -176,7 +178,7 @@ export class ProductRepository {
   async findByPriceRange(
     range: { min?: number; max?: number },
     options: ProductRepositoryOptions = {}
-  ): Promise<ProductResponse[]> {
+  ): Promise<{ data: ProductResponse[]; total: number }> {
     return this.findWithFilters({
       minPrice: range.min,
       maxPrice: range.max,
@@ -190,7 +192,7 @@ export class ProductRepository {
   async findByPriceRangeWithDeleted(
     range: { min?: number; max?: number },
     options: ProductRepositoryOptions = {}
-  ): Promise<ProductResponse[]> {
+  ): Promise<{ data: ProductResponse[]; total: number }> {
     return this.findByPriceRange(range, { ...options, includeDeleted: true });
   }
 
@@ -201,7 +203,7 @@ export class ProductRepository {
   async findByVariantStatus(
     hasVariant: boolean,
     options: ProductRepositoryOptions = {}
-  ): Promise<ProductResponse[]> {
+  ): Promise<{ data: ProductResponse[]; total: number }> {
     return this.findWithFilters({
       hasVariant,
       includeDeleted: options.includeDeleted,
@@ -211,7 +213,9 @@ export class ProductRepository {
     });
   }
 
-  async findInStock(options: ProductRepositoryOptions = {}): Promise<ProductResponse[]> {
+  async findInStock(
+    options: ProductRepositoryOptions = {}
+  ): Promise<{ data: ProductResponse[]; total: number }> {
     return this.findWithFilters({
       inStock: true,
       includeDeleted: options.includeDeleted,

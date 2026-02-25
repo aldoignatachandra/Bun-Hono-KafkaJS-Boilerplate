@@ -49,7 +49,7 @@ export const createProductSchema = z
   .object({
     name: z.string().min(1, 'Product name is required').max(255, 'Product name too long'),
     price: z.number().positive('Price must be positive'),
-    ownerId: z.string().uuid('Invalid owner ID'),
+    // ownerId is NOT in body (handled by auth)
     stock: z.number().int().min(0, 'Stock cannot be negative').optional(),
     attributes: z.array(createAttributeSchema).optional(),
     variants: z.array(createVariantSchema).optional(),
@@ -71,8 +71,8 @@ export const createProductSchema = z
 export const updateProductSchema = z
   .object({
     name: z.string().min(1).max(255).optional(),
-    price: z.number().int().positive().optional(),
-    ownerId: z.string().uuid().optional(),
+    price: z.number().positive().optional(),
+    // ownerId is NOT in body
     stock: z.number().int().min(0).optional(),
     attributes: z.array(createAttributeSchema).optional(),
     variants: z.array(createVariantSchema).optional(),

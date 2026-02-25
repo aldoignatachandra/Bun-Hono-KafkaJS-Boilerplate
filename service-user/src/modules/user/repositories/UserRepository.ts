@@ -90,14 +90,17 @@ export class UserRepository {
 
   async findAll(
     options: UserRepositoryOptions & { limit?: number; offset?: number } = {}
-  ): Promise<UserResponse[]> {
-    const users = await this.drizzleUserRepository.findAll({
+  ): Promise<{ data: UserResponse[]; total: number }> {
+    const { data, total } = await this.drizzleUserRepository.findAll({
       includeDeleted: options.includeDeleted,
       limit: options.limit,
       offset: options.offset,
       search: options.search,
     });
-    return users.map(user => this.mapToResponse(user));
+    return {
+      data: data.map(user => this.mapToResponse(user)),
+      total,
+    };
   }
 
   // Find a user including deleted records (needed for restore operation)

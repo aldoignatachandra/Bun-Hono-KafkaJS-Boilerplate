@@ -7,8 +7,11 @@ export interface ProductEvent {
   name: string;
   price: number;
   ownerId: string;
+  stock?: number;
+  hasVariant?: boolean;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date | null;
   ipAddress?: string;
   userAgent?: string;
   deviceType?: string;

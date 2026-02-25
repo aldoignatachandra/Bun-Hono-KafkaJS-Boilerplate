@@ -13,6 +13,11 @@ export class RestoreProductCommand {
       throw new Error('Product not found or access denied');
     }
 
+    // Check if already active
+    if (!product.deletedAt) {
+      throw new Error('Product is already active');
+    }
+
     // Restore product
     const success = await this.productRepository.restore(id);
     if (!success) {

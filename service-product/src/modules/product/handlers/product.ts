@@ -1,14 +1,15 @@
 import { Hono } from 'hono';
 import { Container } from 'typedi';
+import { ZodError } from 'zod';
 import { errorResponse, successResponse } from '../../../helpers/api-response';
 import { getRequestMetadata } from '../../../helpers/request-metadata';
 import { auth } from '../../../middlewares/auth';
-import { CreateProductSchema, UpdateProductSchema } from '../domain/product';
 import { CreateProductCommand } from '../repositories/commands/CreateProductCommand';
 import { DeleteProductCommand } from '../repositories/commands/DeleteProductCommand';
 import { RestoreProductCommand } from '../repositories/commands/RestoreProductCommand';
 import { UpdateProductCommand } from '../repositories/commands/UpdateProductCommand';
 import { GetProductQuery } from '../repositories/queries/GetProductQuery';
+import { createProductSchema, updateProductSchema } from '../validators/product-validators';
 
 // Define types for Hono context
 type User = {
@@ -33,14 +34,15 @@ productRoutes.post('/products', async c => {
   try {
     const user = c.get('user');
     const body = await c.req.json();
-    const validatedData = CreateProductSchema.parse(body);
+    const validatedData = createProductSchema.parse(body);
     const metadata = getRequestMetadata(c);
 
     const createProductCommand = Container.get(CreateProductCommand);
+    // Force cast to correct type since zod validation ensures structure but types might be loose
+    const createData: any = validatedData;
     const product = await createProductCommand.execute(
       {
-        name: validatedData.name,
-        price: validatedData.price,
+        ...createData,
         ownerId: user.sub,
       },
       metadata
@@ -48,6 +50,9 @@ productRoutes.post('/products', async c => {
 
     return successResponse(c, product, 'Product created successfully', 201);
   } catch (error) {
+    if (error instanceof ZodError) {
+      return errorResponse(c, 'Validation failed', 'VALIDATION_ERROR', 400, error.errors);
+    }
     return errorResponse(c, 'Failed to create product', 'PRODUCT_CREATE_FAILED', 400, error);
   }
 });
@@ -84,16 +89,23 @@ productRoutes.get('/products', async c => {
       filterOptions.ownerId = user.sub;
     }
 
-    const products = await getProductQuery.executeWithFilters(filterOptions);
+    const { data, total } = await getProductQuery.executeWithFilters(filterOptions);
 
-    return successResponse(c, products, 'Products fetched successfully', 200, {
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+
+    return successResponse(c, data, 'Products fetched successfully', 200, {
       includeDeleted,
       onlyDeleted,
       search,
       priceRange: { min: minPrice, max: maxPrice },
       page,
       limit,
-      count: products.length,
+      total,
+      totalPages,
+      hasNextPage,
+      hasPreviousPage,
     });
   } catch (error) {
     return errorResponse(c, 'Failed to fetch products', 'PRODUCT_FETCH_FAILED', 500, error);
@@ -140,7 +152,7 @@ productRoutes.patch('/products/:id', async c => {
     const user = c.get('user');
     const productId = c.req.param('id');
     const body = await c.req.json();
-    const validatedData = UpdateProductSchema.parse(body);
+    const validatedData = updateProductSchema.parse(body);
 
     // Strict IDOR Check: Only OWNER can update. Admin CANNOT update user products.
     const getProductQuery = Container.get(GetProductQuery);
@@ -160,10 +172,15 @@ productRoutes.patch('/products/:id', async c => {
     }
 
     const updateProductCommand = Container.get(UpdateProductCommand);
-    const product = await updateProductCommand.execute(productId, validatedData, user.sub);
+    // Force cast to correct type since zod validation ensures structure but types might be loose
+    const updateData: any = validatedData;
+    const product = await updateProductCommand.execute(productId, updateData, user.sub);
 
     return successResponse(c, product, 'Product updated successfully');
   } catch (error) {
+    if (error instanceof ZodError) {
+      return errorResponse(c, 'Validation failed', 'VALIDATION_ERROR', 400, error.errors);
+    }
     return errorResponse(c, 'Failed to update product', 'PRODUCT_UPDATE_FAILED', 400, error);
   }
 });
@@ -206,6 +223,11 @@ productRoutes.delete('/products/:id', async c => {
       force ? 'Product permanently deleted' : 'Product soft deleted'
     );
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Product already deleted') {
+        return errorResponse(c, 'Product already deleted', 'PRODUCT_ALREADY_DELETED', 400);
+      }
+    }
     return errorResponse(c, 'Failed to delete product', 'PRODUCT_DELETE_FAILED', 400, error);
   }
 });
@@ -238,8 +260,13 @@ productRoutes.post('/products/:id/restore', async c => {
 
     return successResponse(c, { product: restoredProduct }, 'Product restored successfully');
   } catch (error) {
-    if (error instanceof Error && error.message === 'Product not found or access denied') {
-      return errorResponse(c, 'Product not found or access denied', 'PRODUCT_NOT_FOUND', 404);
+    if (error instanceof Error) {
+      if (error.message === 'Product not found or access denied') {
+        return errorResponse(c, 'Product not found or access denied', 'PRODUCT_NOT_FOUND', 404);
+      }
+      if (error.message === 'Product is already active') {
+        return errorResponse(c, 'Product is already active', 'PRODUCT_ALREADY_ACTIVE', 400);
+      }
     }
     return errorResponse(c, 'Failed to restore product', 'PRODUCT_RESTORE_FAILED', 500, error);
   }

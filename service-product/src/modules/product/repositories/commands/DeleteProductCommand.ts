@@ -13,6 +13,11 @@ export class DeleteProductCommand {
       throw new Error('Product not found or access denied');
     }
 
+    // Check if already deleted (for soft delete)
+    if (!force && product.deletedAt) {
+      throw new Error('Product already deleted');
+    }
+
     // Delete product
     await this.productRepository.delete(id, force);
 

@@ -1,4 +1,4 @@
-import { and, eq, gte, isNotNull, isNull, like, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, isNull, like, lte, sql } from 'drizzle-orm';
 import { drizzleDb } from '../../../db/connection';
 import {
   products,
@@ -19,16 +19,6 @@ import type {
 } from '../domain/types';
 
 export { type NewProduct, type Product, type UpdateProduct };
-
-// ============================================
-// Type Helper Interfaces
-// ============================================
-
-interface ProductWithRelations {
-  product: Product;
-  attributes: AttributeResponse[];
-  variants: VariantResponse[];
-}
 
 // ============================================
 // Product Repository Class
@@ -80,7 +70,7 @@ export class ProductRepository {
     offset?: number;
     hasVariant?: boolean;
     inStock?: boolean;
-  }): Promise<Product[]> {
+  }): Promise<{ data: Product[]; total: number }> {
     const {
       ownerId,
       search,
@@ -126,15 +116,61 @@ export class ProductRepository {
       conditions.push(gte(products.stock, 1));
     }
 
+    const where = and(...conditions);
+
+    // Get total count
+    const [countResult] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(where);
+    const total = Number(countResult?.count || 0);
+
     const productList = await this.db
       .select()
       .from(products)
-      .where(and(...conditions))
+      .where(where)
       .limit(limit)
       .offset(offset);
 
-    // Format all products to ensure price is an object
-    return productList.map(p => this.formatProductResponse(p, [], [])) as unknown as Product[];
+    // Collect IDs of products with variants
+    const productIdsWithVariants = productList.filter(p => p.hasVariant).map(p => p.id);
+
+    // Fetch variant prices if needed
+    const variantPricesMap: Record<string, number[]> = {};
+    if (productIdsWithVariants.length > 0) {
+      const variantPrices = await this.db
+        .select({
+          productId: productVariants.productId,
+          price: productVariants.price,
+        })
+        .from(productVariants)
+        .where(
+          and(
+            inArray(productVariants.productId, productIdsWithVariants),
+            isNull(productVariants.deletedAt)
+          )
+        );
+
+      // Group by productId
+      for (const v of variantPrices) {
+        if (!variantPricesMap[v.productId]) {
+          variantPricesMap[v.productId] = [];
+        }
+        if (v.price) {
+          // Ensure it's a number
+          const p = typeof v.price === 'string' ? parseFloat(v.price) : v.price;
+          if (p > 0) variantPricesMap[v.productId].push(p);
+        }
+      }
+    }
+
+    // Format all products to ensure price is an object and exclude heavy fields
+    const data = productList.map(p => {
+      const prices = variantPricesMap[p.id] || [];
+      return this.formatProductListResponse(p, prices);
+    }) as unknown as Product[];
+
+    return { data, total };
   }
 
   async create(data: NewProduct): Promise<Product> {
@@ -216,7 +252,7 @@ export class ProductRepository {
 
   async findWithFiltersAndVariants(
     options: ProductQueryOptions
-  ): Promise<ProductWithVariantsResponse[]> {
+  ): Promise<{ data: ProductWithVariantsResponse[]; total: number }> {
     const conditions = [isNull(products.deletedAt)];
 
     if (options.ownerId) conditions.push(eq(products.ownerId, options.ownerId));
@@ -227,10 +263,19 @@ export class ProductRepository {
     if (options.minPrice !== undefined) conditions.push(gte(products.price, options.minPrice));
     if (options.maxPrice !== undefined) conditions.push(lte(products.price, options.maxPrice));
 
+    const where = and(...conditions);
+
+    // Get total count
+    const [countResult] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(where);
+    const total = Number(countResult?.count || 0);
+
     const productList = await this.db
       .select()
       .from(products)
-      .where(and(...conditions))
+      .where(where)
       .limit(options.limit ?? 10)
       .offset(options.offset ?? 0);
 
@@ -240,10 +285,11 @@ export class ProductRepository {
         const full = await this.findByIdWithVariants(p.id);
         if (full) results.push(full);
       }
-      return results;
+      return { data: results, total };
     }
 
-    return productList.map(p => this.formatProductResponse(p, [], []));
+    const data = productList.map(p => this.formatProductResponse(p, [], []));
+    return { data, total };
   }
 
   // ============================================
@@ -420,48 +466,88 @@ export class ProductRepository {
         }));
       }
 
-      // 6. Replace variants if provided
+      // 6. Intelligent Variant Update (Upsert Strategy)
       let variantsResponse: VariantResponse[] = [];
       if (data.variants !== undefined) {
-        // Soft delete existing
-        await tx
-          .update(productVariants)
-          .set({ deletedAt: new Date() })
-          .where(eq(productVariants.productId, id));
+        // Fetch ALL existing variants for this product (including deleted) to check for SKU collisions/reuse
+        const existingVariants = await tx
+          .select()
+          .from(productVariants)
+          .where(eq(productVariants.productId, id)); // Note: No isNull(deletedAt) check to find soft-deleted SKUs
 
-        // Insert new
-        if (data.variants.length > 0) {
-          // Validate variant prices
-          for (const v of data.variants) {
-            if (v.price !== undefined && v.price !== null && v.price <= 0) {
-              throw new Error('Variant price must be greater than 0');
-            }
+        const existingVariantMap = new Map(existingVariants.map(v => [v.sku, v]));
+        const processedSkuSet = new Set<string>();
+
+        const variantsToInsert: any[] = [];
+        
+        // Validate and Prepare Ops
+        for (const v of data.variants) {
+          if (v.price !== undefined && v.price !== null && v.price <= 0) {
+            throw new Error('Variant price must be greater than 0');
           }
 
-          const variants = await tx
-            .insert(productVariants)
-            .values(
-              data.variants.map(v => ({
-                productId: id,
-                sku: v.sku,
+          if (existingVariantMap.has(v.sku)) {
+            // Update existing variant (restore if deleted)
+            const existing = existingVariantMap.get(v.sku)!;
+            
+            await tx
+              .update(productVariants)
+              .set({
                 price: v.price ?? null,
                 stockQuantity: v.stock ?? 0,
                 isActive: v.isActive ?? true,
                 attributeValues: v.attributeValues,
-              }))
-            )
-            .returning();
-
-          variantsResponse = variants.map(v => ({
-            id: v.id,
-            sku: v.sku,
-            price: v.price,
-            stockQuantity: v.stockQuantity,
-            availableStock: v.stockQuantity - v.stockReserved,
-            isActive: v.isActive,
-            attributeValues: v.attributeValues as Record<string, string>,
-          }));
+                deletedAt: null, // Restore if it was soft-deleted
+                updatedAt: new Date(),
+              })
+              .where(eq(productVariants.id, existing.id));
+            
+            processedSkuSet.add(v.sku);
+          } else {
+            // Insert new variant
+            variantsToInsert.push({
+              productId: id,
+              sku: v.sku,
+              price: v.price ?? null,
+              stockQuantity: v.stock ?? 0,
+              isActive: v.isActive ?? true,
+              attributeValues: v.attributeValues,
+            });
+            processedSkuSet.add(v.sku);
+          }
         }
+
+        // Execute Batch Insert
+        if (variantsToInsert.length > 0) {
+          await tx.insert(productVariants).values(variantsToInsert);
+        }
+
+        // Execute Soft Delete for removed variants
+        // Identify variants that exist in DB but are NOT in the input list
+        const variantsToDelete = existingVariants.filter(v => !processedSkuSet.has(v.sku) && !v.deletedAt);
+        
+        if (variantsToDelete.length > 0) {
+          await tx
+            .update(productVariants)
+            .set({ deletedAt: new Date() })
+            .where(inArray(productVariants.id, variantsToDelete.map(v => v.id)));
+        }
+
+        // Fetch final active variants for response
+        const finalVariants = await tx
+          .select()
+          .from(productVariants)
+          .where(and(eq(productVariants.productId, id), isNull(productVariants.deletedAt)));
+
+        variantsResponse = finalVariants.map(v => ({
+          id: v.id,
+          sku: v.sku,
+          price: v.price,
+          stockQuantity: v.stockQuantity,
+          availableStock: v.stockQuantity - v.stockReserved,
+          isActive: v.isActive,
+          attributeValues: v.attributeValues as Record<string, string>,
+        }));
       } else {
         // Fetch existing
         const variants = await tx
@@ -545,6 +631,50 @@ export class ProductRepository {
       deletedAt: product.deletedAt,
       attributes,
       variants,
+    };
+  }
+
+  // ============================================
+  // Helper: Format Product List Response (No Variants/Attributes)
+  // ============================================
+  private formatProductListResponse(product: Product, variantPrices: number[]): any {
+    // Helper to ensure number
+    const toNum = (val: string | number | null | undefined): number => {
+      if (val === null || val === undefined) return 0;
+      const num = typeof val === 'string' ? parseFloat(val) : val;
+      return isNaN(num) ? 0 : num;
+    };
+
+    let priceResponse: PriceRange;
+    const productPrice = toNum(product.price);
+
+    if (product.hasVariant && variantPrices.length > 0) {
+      const min = Math.min(...variantPrices);
+      const max = Math.max(...variantPrices);
+      priceResponse = {
+        min,
+        max,
+        display: min === max ? `$${min.toFixed(2)}` : `$${min.toFixed(2)} - $${max.toFixed(2)}`,
+      };
+    } else {
+      // No variants or no variant prices: use product base price
+      priceResponse = {
+        min: productPrice,
+        max: productPrice,
+        display: `$${productPrice.toFixed(2)}`,
+      };
+    }
+
+    return {
+      id: product.id,
+      name: product.name,
+      price: priceResponse,
+      ownerId: product.ownerId,
+      stock: product.stock,
+      hasVariant: product.hasVariant,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+      deletedAt: product.deletedAt,
     };
   }
 }

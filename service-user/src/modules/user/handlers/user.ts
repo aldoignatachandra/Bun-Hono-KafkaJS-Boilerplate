@@ -67,17 +67,24 @@ userRoutes.get('/admin/users', auth, requireRole('ADMIN'), async c => {
     const offset = (page - 1) * limit;
 
     const userRepository = Container.get(UserRepository);
-    const users = await userRepository.findAll({
+    const { data: users, total } = await userRepository.findAll({
       includeDeleted,
       limit,
       offset,
       search,
     });
 
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+
     return successResponse(c, users, 'Users fetched successfully', 200, {
       page,
       limit,
-      count: users.length,
+      total,
+      totalPages,
+      hasNextPage,
+      hasPreviousPage,
       search,
     });
   } catch (error) {
