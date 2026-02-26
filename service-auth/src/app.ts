@@ -1,3 +1,4 @@
+import { swaggerUI } from '@hono/swagger-ui';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -8,6 +9,7 @@ import { basicAuthMiddleware } from './middlewares/basic-auth';
 import { rateLimiter } from './middlewares/rate-limit';
 import { systemAuthMiddleware } from './middlewares/system-auth';
 import { loginHandler, logoutHandler } from './modules/auth/handlers/auth';
+import { getOpenApiSpec } from './openapi';
 
 const app = new Hono();
 
@@ -20,6 +22,10 @@ const rateLimits = {
 // Middleware
 app.use('*', cors());
 app.use('*', logger());
+
+// OpenAPI documentation
+app.get('/docs/openapi.json', c => c.json(getOpenApiSpec()));
+app.get('/docs', swaggerUI({ url: '/docs/openapi.json' }));
 
 // Health check endpoint (Public)
 app.get('/health', c => {

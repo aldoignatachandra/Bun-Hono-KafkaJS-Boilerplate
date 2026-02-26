@@ -41,7 +41,12 @@ export const checkAndConsume = (
   const existing = buckets.get(key);
   const refillRate = limit / windowMs;
 
-  if (!existing || existing.limit !== limit || existing.windowMs !== windowMs || existing.expiresAt <= now) {
+  if (
+    !existing ||
+    existing.limit !== limit ||
+    existing.windowMs !== windowMs ||
+    existing.expiresAt <= now
+  ) {
     const bucket: Bucket = {
       tokens: limit - 1,
       lastRefill: now,

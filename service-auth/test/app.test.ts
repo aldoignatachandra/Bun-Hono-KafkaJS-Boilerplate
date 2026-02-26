@@ -43,4 +43,18 @@ describe('app', () => {
     expect(res.status).toBe(200);
     expect(body.message).toBe('Auth Service Gateway');
   });
+
+  it('serves openapi json', async () => {
+    const { default: app } = await appPromise;
+    const res = await app.request('/docs/openapi.json');
+    const body = (await res.json()) as { openapi: string };
+    expect(res.status).toBe(200);
+    expect(body.openapi).toBe('3.0.3');
+  });
+
+  it('serves swagger ui', async () => {
+    const { default: app } = await appPromise;
+    const res = await app.request('/docs');
+    expect(res.status).toBe(200);
+  });
 });
