@@ -78,6 +78,14 @@ Some endpoints require specific roles:
 | `ADMIN` | Full access to all endpoints including admin operations |
 | `USER`  | Limited to own profile ( `/me` endpoint)                |
 
+**Middleware Error Shape (Role Check):**
+
+```json
+{
+  "message": "Forbidden: Insufficient permissions"
+}
+```
+
 ### 3. System Authentication
 
 Required for internal API endpoints.
@@ -187,15 +195,36 @@ Authorization: Basic YWRtaW46YWRtaW4xMjM=
 
 ---
 
-### 3. Get Current User (Me)
+### 3. OpenAPI Documentation
+
+Interactive and machine-readable API docs.
+
+| Attribute         | Value           |
+| ----------------- | --------------- |
+| **Method**        | `GET`           |
+| **Path**          | `/docs`         |
+| **Auth Required** | ❌ No           |
+| **Returns**       | Swagger UI HTML |
+
+| Attribute         | Value                 |
+| ----------------- | --------------------- |
+| **Method**        | `GET`                 |
+| **Path**          | `/docs/openapi.json`  |
+| **Auth Required** | ❌ No                 |
+| **Returns**       | OpenAPI JSON document |
+
+---
+
+### 4. Get Current User (Me)
 
 Returns the profile of the authenticated user.
 
-| Attribute         | Value             |
-| ----------------- | ----------------- |
-| **Method**        | `GET`             |
-| **Path**          | `/me`             |
-| **Auth Required** | ✅ JWT (Any Role) |
+| Attribute         | Value                       |
+| ----------------- | --------------------------- |
+| **Method**        | `GET`                       |
+| **Path**          | `/me`                       |
+| **Auth Required** | ✅ JWT (Any Role)           |
+| **Rate Limited**  | ✅ Yes (120 requests / 60s) |
 
 #### Request
 
@@ -215,6 +244,7 @@ Authorization: Bearer <jwt-token>
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "email": "user@example.com",
     "username": "johndoe",
+    "name": "John Doe",
     "role": "USER"
   }
 }
@@ -227,17 +257,26 @@ Authorization: Bearer <jwt-token>
 | `401` | `UNAUTHORIZED`   | Invalid or missing token |
 | `404` | `USER_NOT_FOUND` | User not found           |
 
+**Middleware Error Shape (JWT Auth):**
+
+```json
+{
+  "message": "Unauthorized: Invalid token"
+}
+```
+
 ---
 
-### 4. Create User (Admin Only)
+### 5. Create User (Admin Only)
 
 Creates a new user account.
 
-| Attribute         | Value               |
-| ----------------- | ------------------- |
-| **Method**        | `POST`              |
-| **Path**          | `/admin/users`      |
-| **Auth Required** | ✅ JWT + ADMIN Role |
+| Attribute         | Value                      |
+| ----------------- | -------------------------- |
+| **Method**        | `POST`                     |
+| **Path**          | `/admin/users`             |
+| **Auth Required** | ✅ JWT + ADMIN Role        |
+| **Rate Limited**  | ✅ Yes (10 requests / 60s) |
 
 #### Request
 
@@ -300,15 +339,16 @@ curl -X POST http://localhost:3101/admin/users \
 
 ---
 
-### 5. Get All Users (Admin Only)
+### 6. Get All Users (Admin Only)
 
 Retrieves a paginated list of users.
 
-| Attribute         | Value               |
-| ----------------- | ------------------- |
-| **Method**        | `GET`               |
-| **Path**          | `/admin/users`      |
-| **Auth Required** | ✅ JWT + ADMIN Role |
+| Attribute         | Value                       |
+| ----------------- | --------------------------- |
+| **Method**        | `GET`                       |
+| **Path**          | `/admin/users`              |
+| **Auth Required** | ✅ JWT + ADMIN Role         |
+| **Rate Limited**  | ✅ Yes (120 requests / 60s) |
 
 #### Request
 
@@ -348,7 +388,10 @@ Authorization: Bearer <admin-jwt-token>
   "meta": {
     "page": 1,
     "limit": 10,
-    "count": 1,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false,
     "search": "john"
   }
 }
@@ -356,7 +399,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 6. Get User by ID (Admin Only)
+### 7. Get User by ID (Admin Only)
 
 Retrieves a specific user's details.
 
@@ -413,7 +456,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 7. Delete User (Admin Only)
+### 8. Delete User (Admin Only)
 
 Deletes a user (soft delete by default).
 
@@ -423,11 +466,12 @@ Deletes a user (soft delete by default).
 > - Cannot delete other admins.
 > - Cannot soft-delete an already deleted user.
 
-| Attribute         | Value               |
-| ----------------- | ------------------- |
-| **Method**        | `DELETE`            |
-| **Path**          | `/admin/users/:id`  |
-| **Auth Required** | ✅ JWT + ADMIN Role |
+| Attribute         | Value                     |
+| ----------------- | ------------------------- |
+| **Method**        | `DELETE`                  |
+| **Path**          | `/admin/users/:id`        |
+| **Auth Required** | ✅ JWT + ADMIN Role       |
+| **Rate Limited**  | ✅ Yes (5 requests / 60s) |
 
 #### Request
 
@@ -473,7 +517,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 8. Restore User (Admin Only)
+### 9. Restore User (Admin Only)
 
 Restores a soft-deleted user.
 
@@ -531,7 +575,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 9. Get Oldest User (Internal API)
+### 10. Get Oldest User (Internal API)
 
 Returns the oldest active user by role. Used for service-to-service communication (e.g., product seeder).
 
@@ -551,9 +595,9 @@ Authorization: Basic YWRtaW46YWRtaW4xMjM=
 
 **Query Parameters:**
 
-| Parameter | Type   | Default  | Description               |
-| --------- | ------ | -------- | ------------------------- | --------- |
-| `role`    | string | `'USER'` | Filter by role (`'ADMIN'` | `'USER'`) |
+| Parameter | Type   | Default  | Description                            |
+| --------- | ------ | -------- | -------------------------------------- |
+| `role`    | string | `'USER'` | Filter by role (`'ADMIN'` \| `'USER'`) |
 
 #### Response (200 OK)
 
@@ -580,6 +624,14 @@ Authorization: Basic YWRtaW46YWRtaW4xMjM=
 | `401` | `UNAUTHORIZED`             | Invalid system credentials      |
 | `404` | `USER_NOT_FOUND`           | No user found matching criteria |
 | `500` | `FETCH_OLDEST_USER_FAILED` | Internal server error           |
+
+**Middleware Error Shape (System Auth):**
+
+```json
+{
+  "message": "Unauthorized: Invalid credentials"
+}
+```
 
 #### cURL Example
 

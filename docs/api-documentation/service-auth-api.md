@@ -193,6 +193,14 @@ Authorization: Basic YWRtaW46YWRtaW4xMjM=
 | `401` | Missing or invalid Authorization header                 |
 | `500` | Auth misconfiguration (SYSTEM_USER/SYSTEM_PASS not set) |
 
+**Middleware Error Shape (System Auth):**
+
+```json
+{
+  "message": "Unauthorized: Invalid credentials"
+}
+```
+
 ---
 
 ### 3. Login
@@ -201,12 +209,12 @@ Authenticates a user and creates a new session.
 
 > **Important:** This endpoint enforces a **Single Active Session** policy. Logging in will invalidate all previous sessions for the user.
 
-| Attribute         | Value              |
-| ----------------- | ------------------ |
-| **Method**        | `POST`             |
-| **Path**          | `/auth/login`      |
-| **Auth Required** | ✅ User Basic Auth |
-| **Rate Limited**  | ❌ No              |
+| Attribute         | Value                      |
+| ----------------- | -------------------------- |
+| **Method**        | `POST`                     |
+| **Path**          | `/auth/login`              |
+| **Auth Required** | ✅ User Basic Auth         |
+| **Rate Limited**  | ✅ Yes (10 requests / 60s) |
 
 #### Request
 
@@ -253,6 +261,14 @@ Content-Type: application/json
 | `401` | `INVALID_FORMAT`      | Invalid Basic Auth format          |
 | `500` | `LOGIN_FAILED`        | Internal server error              |
 
+**Middleware Error Shape (Basic Auth):**
+
+```json
+{
+  "message": "Unauthorized: Missing or invalid Authorization header (Basic Auth required)"
+}
+```
+
 #### cURL Example
 
 ```bash
@@ -271,12 +287,12 @@ curl -X POST http://localhost:3100/auth/login \
 
 Invalidates the current user session.
 
-| Attribute         | Value          |
-| ----------------- | -------------- |
-| **Method**        | `POST`         |
-| **Path**          | `/auth/logout` |
-| **Auth Required** | ✅ JWT Token   |
-| **Rate Limited**  | ❌ No          |
+| Attribute         | Value                      |
+| ----------------- | -------------------------- |
+| **Method**        | `POST`                     |
+| **Path**          | `/auth/logout`             |
+| **Auth Required** | ✅ JWT Token               |
+| **Rate Limited**  | ✅ Yes (30 requests / 60s) |
 
 #### Request
 
@@ -317,6 +333,14 @@ X-Device-Type: mobile
 | `401` | `INVALID_SESSION` | Session ID missing in token  |
 | `500` | `LOGOUT_FAILED`   | Internal server error        |
 
+**Middleware Error Shape (JWT Auth):**
+
+```json
+{
+  "message": "Unauthorized: Invalid token"
+}
+```
+
 #### cURL Example
 
 ```bash
@@ -355,6 +379,26 @@ Host: localhost:3100
   }
 }
 ```
+
+---
+
+### 6. OpenAPI Documentation
+
+Interactive and machine-readable API docs.
+
+| Attribute         | Value           |
+| ----------------- | --------------- |
+| **Method**        | `GET`           |
+| **Path**          | `/docs`         |
+| **Auth Required** | ❌ No           |
+| **Returns**       | Swagger UI HTML |
+
+| Attribute         | Value                 |
+| ----------------- | --------------------- |
+| **Method**        | `GET`                 |
+| **Path**          | `/docs/openapi.json`  |
+| **Auth Required** | ❌ No                 |
+| **Returns**       | OpenAPI JSON document |
 
 ---
 
@@ -491,7 +535,7 @@ This ensures:
 
 1. **Token Storage**: Store JWT tokens securely (httpOnly cookies recommended for web)
 2. **HTTPS**: Always use HTTPS in production
-3. **Token Expiration**: Tokens expire after 1 hour (configurable)
+3. **Token Expiration**: Tokens expire after 1 day (configurable)
 4. **Session Validation**: Each request validates session exists in database
 5. **Credential Security**: Never log passwords or tokens
 

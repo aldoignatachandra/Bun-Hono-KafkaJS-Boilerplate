@@ -107,6 +107,35 @@ describe('api-client', () => {
     global.fetch = originalFetch;
   });
 
+  it('throws timeout error when request exceeds timeout', async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = mock((_url: string, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        const signal = init?.signal as AbortSignal | undefined;
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            const error = new Error('Request aborted');
+            (error as { name: string }).name = 'AbortError';
+            reject(error);
+          });
+        }
+      });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const client = createApiClient({ baseUrl: 'http://localhost:3101', timeout: 5 });
+    let captured: unknown;
+    try {
+      await client.get('/api/internal/users/oldest');
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured).toBeInstanceOf(ApiClientError);
+    expect((captured as ApiClientError).code).toBe('TIMEOUT');
+
+    global.fetch = originalFetch;
+  });
+
   it('normalizes baseUrl and includes auth header', async () => {
     const originalFetch = global.fetch;
     const fetchMock = mock(async () => ({

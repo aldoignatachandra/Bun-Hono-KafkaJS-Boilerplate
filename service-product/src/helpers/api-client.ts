@@ -1,3 +1,5 @@
+import { createCircuitBreaker } from './circuit-breaker';
+
 /**
  * Internal API Client
  *
@@ -53,11 +55,22 @@ export class ApiClientError extends Error {
 /**
  * Creates a timeout promise that rejects after specified milliseconds
  */
-function createTimeoutPromise(ms: number): Promise<never> {
-  return new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`Request timeout after ${ms}ms`)), ms);
-  });
+function createAbortController(ms: number) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ms);
+  return {
+    controller,
+    cancel: () => clearTimeout(timeoutId),
+  };
 }
+
+type HttpMethod = 'GET' | 'POST';
+
+type RequestPayload = {
+  method: HttpMethod;
+  endpoint: string;
+  body?: unknown;
+};
 
 /**
  * Internal API Client
@@ -81,6 +94,7 @@ export class InternalApiClient {
   private baseUrl: string;
   private timeout: number;
   private defaultHeaders: Record<string, string>;
+  private breaker: ReturnType<typeof createCircuitBreaker<RequestPayload[], ApiResponse<unknown>>>;
 
   constructor(config: ApiClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
@@ -94,25 +108,52 @@ export class InternalApiClient {
     if (config.authToken) {
       this.defaultHeaders['Authorization'] = config.authToken;
     }
+
+    // Circuit breaker prevents cascading failures when upstream services are unhealthy.
+    this.breaker = createCircuitBreaker<[RequestPayload], ApiResponse<unknown>>(
+      'internal-api-client',
+      (payload: RequestPayload) => this.executeRequest(payload),
+      { timeout: this.timeout }
+    );
   }
 
   /**
    * Makes a GET request to the specified endpoint
    */
   async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    const url = `${this.baseUrl}${endpoint}`;
+    try {
+      const response = await this.breaker.fire({ method: 'GET', endpoint });
+      return response as ApiResponse<T>;
+    } catch (error) {
+      this.handleBreakerError(error);
+    }
+  }
+
+  /**
+   * Makes a POST request to the specified endpoint
+   */
+  async post<T>(endpoint: string, body: unknown): Promise<ApiResponse<T>> {
+    try {
+      const response = await this.breaker.fire({ method: 'POST', endpoint, body });
+      return response as ApiResponse<T>;
+    } catch (error) {
+      this.handleBreakerError(error);
+    }
+  }
+
+  private async executeRequest(payload: RequestPayload): Promise<ApiResponse<unknown>> {
+    const url = `${this.baseUrl}${payload.endpoint}`;
+    const { controller, cancel } = createAbortController(this.timeout);
 
     try {
-      const response = await Promise.race([
-        fetch(url, {
-          method: 'GET',
-          headers: this.defaultHeaders,
-        }),
-        createTimeoutPromise(this.timeout),
-      ]);
+      const response = await fetch(url, {
+        method: payload.method,
+        headers: this.defaultHeaders,
+        body: payload.body ? JSON.stringify(payload.body) : undefined,
+        signal: controller.signal,
+      });
 
       if (!response.ok) {
-        // Try to parse error response
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         let errorCode = `HTTP_${response.status}`;
         let errorDetails: unknown;
@@ -131,14 +172,16 @@ export class InternalApiClient {
         throw new ApiClientError(errorMessage, response.status, errorCode, errorDetails);
       }
 
-      const data: ApiResponse<T> = await response.json();
-      return data;
+      return (await response.json()) as ApiResponse<unknown>;
     } catch (error) {
       if (error instanceof ApiClientError) {
         throw error;
       }
 
-      // Handle network errors and timeouts
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new ApiClientError(`Request timeout after ${this.timeout}ms`, 0, 'TIMEOUT');
+      }
+
       const message = error instanceof Error ? error.message : 'Unknown network error';
       throw new ApiClientError(
         `Failed to connect to ${this.baseUrl}: ${message}`,
@@ -146,59 +189,26 @@ export class InternalApiClient {
         'NETWORK_ERROR',
         message
       );
+    } finally {
+      cancel();
     }
   }
 
-  /**
-   * Makes a POST request to the specified endpoint
-   */
-  async post<T>(endpoint: string, body: unknown): Promise<ApiResponse<T>> {
-    const url = `${this.baseUrl}${endpoint}`;
-
-    try {
-      const response = await Promise.race([
-        fetch(url, {
-          method: 'POST',
-          headers: this.defaultHeaders,
-          body: JSON.stringify(body),
-        }),
-        createTimeoutPromise(this.timeout),
-      ]);
-
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        let errorCode = `HTTP_${response.status}`;
-        let errorDetails: unknown;
-
-        try {
-          const errorData = await response.json();
-          if (errorData.error) {
-            errorCode = errorData.error.code || errorCode;
-            errorDetails = errorData.error.details;
-            errorMessage = errorData.message || errorMessage;
-          }
-        } catch {
-          // Response is not JSON
-        }
-
-        throw new ApiClientError(errorMessage, response.status, errorCode, errorDetails);
-      }
-
-      const data: ApiResponse<T> = await response.json();
-      return data;
-    } catch (error) {
-      if (error instanceof ApiClientError) {
-        throw error;
-      }
-
-      const message = error instanceof Error ? error.message : 'Unknown network error';
-      throw new ApiClientError(
-        `Failed to connect to ${this.baseUrl}: ${message}`,
-        0,
-        'NETWORK_ERROR',
-        message
-      );
+  private handleBreakerError(error: unknown): never {
+    if (error instanceof ApiClientError) {
+      throw error;
     }
+
+    const code = (error as { code?: string }).code;
+    if (code === 'EOPENBREAKER') {
+      throw new ApiClientError('Upstream service temporarily unavailable', 503, 'CIRCUIT_OPEN');
+    }
+    if (code === 'ETIMEDOUT') {
+      throw new ApiClientError(`Request timeout after ${this.timeout}ms`, 0, 'TIMEOUT');
+    }
+
+    const message = error instanceof Error ? error.message : 'Unknown circuit breaker error';
+    throw new ApiClientError(message, 0, 'CIRCUIT_ERROR', error);
   }
 }
 

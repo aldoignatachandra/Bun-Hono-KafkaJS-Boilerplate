@@ -70,6 +70,14 @@ Authorization: Bearer <jwt-token>
 }
 ```
 
+**Middleware Error Shape (JWT Auth):**
+
+```json
+{
+  "message": "Unauthorized: Invalid token"
+}
+```
+
 ### 2. System Authentication
 
 Required for admin health check endpoint.
@@ -87,12 +95,20 @@ SYSTEM_USER=admin
 SYSTEM_PASS=admin123
 ```
 
+**Middleware Error Shape (System Auth):**
+
+```json
+{
+  "message": "Unauthorized: Invalid credentials"
+}
+```
+
 ### 3. Access Control
 
-| Role    | Access                                      |
-| ------- | ------------------------------------------- |
-| `USER`  | Can access own products only                |
-| `ADMIN` | Can access all products regardless of owner |
+| Role    | Access                                                     |
+| ------- | ---------------------------------------------------------- |
+| `USER`  | Can access and mutate own products only                    |
+| `ADMIN` | Can list/get any product; cannot mutate non-owned products |
 
 ---
 
@@ -170,15 +186,36 @@ Authorization: Basic YWRtaW46YWRtaW4xMjM=
 
 ---
 
-### 3. Create Product
+### 3. OpenAPI Documentation
+
+Interactive and machine-readable API docs.
+
+| Attribute         | Value           |
+| ----------------- | --------------- |
+| **Method**        | `GET`           |
+| **Path**          | `/docs`         |
+| **Auth Required** | ❌ No           |
+| **Returns**       | Swagger UI HTML |
+
+| Attribute         | Value                 |
+| ----------------- | --------------------- |
+| **Method**        | `GET`                 |
+| **Path**          | `/docs/openapi.json`  |
+| **Auth Required** | ❌ No                 |
+| **Returns**       | OpenAPI JSON document |
+
+---
+
+### 4. Create Product
 
 Creates a new product owned by the authenticated user. Supports both **Simple Products** and **Variable Products**.
 
-| Attribute         | Value             |
-| ----------------- | ----------------- |
-| **Method**        | `POST`            |
-| **Path**          | `/products`       |
-| **Auth Required** | ✅ JWT (Any Role) |
+| Attribute         | Value                      |
+| ----------------- | -------------------------- |
+| **Method**        | `POST`                     |
+| **Path**          | `/products`                |
+| **Auth Required** | ✅ JWT (Any Role)          |
+| **Rate Limited**  | ✅ Yes (20 requests / 60s) |
 
 #### Request (Simple Product)
 
@@ -294,41 +331,40 @@ Creates a product with attributes (Size, Color) and variants (SKUs).
 | ----- | ----------------------- | ------------------------ |
 | `400` | `PRODUCT_CREATE_FAILED` | Validation error         |
 | `401` | `UNAUTHORIZED`          | Invalid or missing token |
+| `429` | `RATE_LIMITED`          | Too many requests        |
 
 ---
 
-### 4. Get Products
+### 5. Get Products
 
-Retrieves products with filtering and pagination.
+Retrieves products with filtering and pagination. The list response returns base product fields only (no attributes/variants).
 
-| Attribute         | Value             |
-| ----------------- | ----------------- |
-| **Method**        | `GET`             |
-| **Path**          | `/products`       |
-| **Auth Required** | ✅ JWT (Any Role) |
+| Attribute         | Value                       |
+| ----------------- | --------------------------- |
+| **Method**        | `GET`                       |
+| **Path**          | `/products`                 |
+| **Auth Required** | ✅ JWT (Any Role)           |
+| **Rate Limited**  | ✅ Yes (120 requests / 60s) |
 
 #### Request
 
 ```http
-GET /products?page=1&limit=10&search=shirt&includeVariants=true HTTP/1.1
+GET /products?page=1&limit=10&search=shirt&includeDeleted=false HTTP/1.1
 Host: localhost:3102
 Authorization: Bearer <jwt-token>
 ```
 
 **Query Parameters:**
 
-| Parameter         | Type    | Default | Description                     |
-| ----------------- | ------- | ------- | ------------------------------- |
-| `page`            | number  | `1`     | Page number                     |
-| `limit`           | number  | `10`    | Items per page                  |
-| `search`          | string  | `null`  | Search by product name          |
-| `minPrice`        | number  | `null`  | Minimum price filter            |
-| `maxPrice`        | number  | `null`  | Maximum price filter            |
-| `hasVariant`      | boolean | `null`  | Filter by variable products     |
-| `inStock`         | boolean | `false` | Filter by stock availability    |
-| `includeVariants` | boolean | `false` | Include attributes & variants   |
-| `includeDeleted`  | boolean | `false` | Include soft-deleted products   |
-| `onlyDeleted`     | boolean | `false` | Only show soft-deleted products |
+| Parameter        | Type    | Default | Description                     |
+| ---------------- | ------- | ------- | ------------------------------- |
+| `page`           | number  | `1`     | Page number                     |
+| `limit`          | number  | `10`    | Items per page                  |
+| `search`         | string  | `null`  | Search by product name          |
+| `minPrice`       | number  | `null`  | Minimum price filter            |
+| `maxPrice`       | number  | `null`  | Maximum price filter            |
+| `includeDeleted` | boolean | `false` | Include soft-deleted products   |
+| `onlyDeleted`    | boolean | `false` | Only show soft-deleted products |
 
 #### Response (200 OK)
 
@@ -340,11 +376,7 @@ Authorization: Bearer <jwt-token>
     {
       "id": "770e8400-e29b-41d4-a716-446655440000",
       "name": "Premium T-Shirt",
-      "price": {
-        "min": 29.99,
-        "max": 34.99,
-        "display": "$29.99 - $34.99"
-      },
+      "price": 29.99,
       "ownerId": "550e8400-e29b-41d4-a716-446655440000",
       "stock": 100,
       "hasVariant": true,
@@ -354,25 +386,36 @@ Authorization: Bearer <jwt-token>
     }
   ],
   "meta": {
+    "includeDeleted": false,
+    "onlyDeleted": false,
+    "search": "shirt",
+    "priceRange": { "min": null, "max": null },
     "page": 1,
     "limit": 10,
-    "count": 1,
-    "search": "shirt"
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPreviousPage": false
   }
 }
 ```
 
 ---
 
-### 5. Get Product by ID
+### 6. Get Product by ID
 
-Retrieves a specific product.
+Retrieves a specific product. If the product has variants, the response includes `attributes` and `variants`.
 
 | Attribute         | Value             |
 | ----------------- | ----------------- |
 | **Method**        | `GET`             |
 | **Path**          | `/products/:id`   |
 | **Auth Required** | ✅ JWT (Any Role) |
+
+**Access Control:**
+
+- `ADMIN`: Can fetch any product.
+- `USER`: Can only fetch products they own.
 
 #### Request
 
@@ -413,6 +456,8 @@ Authorization: Bearer <jwt-token>
         "sku": "TSHIRT-S",
         "price": 29.99,
         "stockQuantity": 50,
+        "availableStock": 50,
+        "isActive": true,
         "attributeValues": { "Size": "S" }
       }
     ],
@@ -422,17 +467,25 @@ Authorization: Bearer <jwt-token>
 }
 ```
 
+#### Error Responses
+
+| Code  | Error Code          | Description       |
+| ----- | ------------------- | ----------------- |
+| `403` | `ACCESS_DENIED`     | Not product owner |
+| `404` | `PRODUCT_NOT_FOUND` | Product not found |
+
 ---
 
-### 6. Update Product
+### 7. Update Product
 
 Updates an existing product. Can also update attributes and variants (full replacement).
 
-| Attribute         | Value             |
-| ----------------- | ----------------- |
-| **Method**        | `PATCH`           |
-| **Path**          | `/products/:id`   |
-| **Auth Required** | ✅ JWT (Any Role) |
+| Attribute         | Value                      |
+| ----------------- | -------------------------- |
+| **Method**        | `PATCH`                    |
+| **Path**          | `/products/:id`            |
+| **Auth Required** | ✅ JWT (Owner Only)        |
+| **Rate Limited**  | ✅ Yes (30 requests / 60s) |
 
 #### Request
 
@@ -479,17 +532,27 @@ Content-Type: application/json
 }
 ```
 
+#### Error Responses
+
+| Code  | Error Code          | Description             |
+| ----- | ------------------- | ----------------------- |
+| `400` | `VALIDATION_ERROR`  | Invalid request payload |
+| `403` | `ACCESS_DENIED`     | Only owner can update   |
+| `404` | `PRODUCT_NOT_FOUND` | Product not found       |
+| `429` | `RATE_LIMITED`      | Too many requests       |
+
 ---
 
-### 7. Delete Product
+### 8. Delete Product
 
 Deletes a product (soft delete by default).
 
-| Attribute         | Value             |
-| ----------------- | ----------------- |
-| **Method**        | `DELETE`          |
-| **Path**          | `/products/:id`   |
-| **Auth Required** | ✅ JWT (Any Role) |
+| Attribute         | Value                      |
+| ----------------- | -------------------------- |
+| **Method**        | `DELETE`                   |
+| **Path**          | `/products/:id`            |
+| **Auth Required** | ✅ JWT (Owner Only)        |
+| **Rate Limited**  | ✅ Yes (10 requests / 60s) |
 
 #### Request
 
@@ -497,9 +560,18 @@ Deletes a product (soft delete by default).
 DELETE /products/770e8400-e29b-41d4-a716-446655440000?force=false HTTP/1.1
 ```
 
+#### Error Responses
+
+| Code  | Error Code                | Description             |
+| ----- | ------------------------- | ----------------------- |
+| `400` | `PRODUCT_ALREADY_DELETED` | Product already deleted |
+| `403` | `ACCESS_DENIED`           | Only owner can delete   |
+| `404` | `PRODUCT_NOT_FOUND`       | Product not found       |
+| `429` | `RATE_LIMITED`            | Too many requests       |
+
 ---
 
-### 8. Restore Product
+### 9. Restore Product
 
 Restores a soft-deleted product.
 
@@ -507,25 +579,15 @@ Restores a soft-deleted product.
 | ----------------- | ----------------------- |
 | **Method**        | `POST`                  |
 | **Path**          | `/products/:id/restore` |
-| **Auth Required** | ✅ JWT (Any Role)       |
+| **Auth Required** | ✅ JWT (Owner Only)     |
 
----
+#### Error Responses
 
-### 9. Search Products
-
-Alternative endpoint for product search.
-
-| Attribute         | Value              |
-| ----------------- | ------------------ |
-| **Method**        | `GET`              |
-| **Path**          | `/products/search` |
-| **Auth Required** | ✅ JWT (Any Role)  |
-
-#### Request
-
-```http
-GET /products/search?q=t-shirt&includeDeleted=false HTTP/1.1
-```
+| Code  | Error Code               | Description            |
+| ----- | ------------------------ | ---------------------- |
+| `400` | `PRODUCT_ALREADY_ACTIVE` | Product already active |
+| `403` | `ACCESS_DENIED`          | Only owner can restore |
+| `404` | `PRODUCT_NOT_FOUND`      | Product not found      |
 
 ---
 
@@ -537,15 +599,15 @@ GET /products/search?q=t-shirt&includeDeleted=false HTTP/1.1
 interface Product {
   id: string; // UUID
   name: string; // 1-255 characters
-  price: PriceRange; // Price object
+  price: number | PriceRange; // Number for simple products, range for variants
   ownerId: string; // Owner UUID
   stock: number; // Current stock quantity
   hasVariant: boolean; // Has product variants
-  attributes?: ProductAttribute[]; // Optional list of attributes
-  variants?: ProductVariant[]; // Optional list of variants
+  attributes?: ProductAttribute[]; // Present when variants exist
+  variants?: ProductVariant[]; // Present when variants exist
   createdAt: Date;
   updatedAt: Date;
-  deletedAt?: Date;
+  deletedAt?: Date | null;
 }
 ```
 
@@ -564,10 +626,10 @@ interface PriceRange {
 ```typescript
 interface ProductVariant {
   id: string; // UUID
-  productId: string;
   sku: string; // Unique SKU
-  price: number; // Variant price
+  price: number | null; // Variant price (nullable)
   stockQuantity: number;
+  availableStock: number;
   isActive: boolean;
   attributeValues: {
     [key: string]: string; // e.g., { Color: "Red", Size: "L" }
@@ -601,7 +663,29 @@ interface CreateProductRequest {
   }[];
   variants?: {
     sku: string;
-    price?: number;
+    price?: number | null;
+    stock?: number;
+    isActive?: boolean;
+    attributeValues: Record<string, string>;
+  }[];
+}
+```
+
+### UpdateProductRequest
+
+```typescript
+interface UpdateProductRequest {
+  name?: string;
+  price?: number;
+  stock?: number;
+  attributes?: {
+    name: string;
+    values: string[];
+    displayOrder?: number;
+  }[];
+  variants?: {
+    sku: string;
+    price?: number | null;
     stock?: number;
     isActive?: boolean;
     attributeValues: Record<string, string>;
