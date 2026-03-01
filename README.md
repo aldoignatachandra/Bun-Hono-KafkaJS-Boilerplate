@@ -55,7 +55,7 @@ graph TB
     Client[Web / Mobile Client]
   end
 
-  subgraph API_Gateway_Logic
+  subgraph Microservices
     direction TB
     Auth[🔐 Auth Service :3100]
     User[👤 User Service :3101]

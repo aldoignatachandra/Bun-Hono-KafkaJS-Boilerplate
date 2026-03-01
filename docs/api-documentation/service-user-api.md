@@ -2,7 +2,7 @@
 
 > **Service Name:** User Service
 >
-> **Version:** 1.0.0
+> **Version:** 1.0.1
 >
 > **Base URL:** `http://localhost:3101`
 >

@@ -4,7 +4,7 @@
 >
 > **Version:** 1.0.0
 >
-> **Base URL:** `http://localhost:3102`
+> **Base URL:** http://localhost:3102
 >
 > **Port:** 3102
 
