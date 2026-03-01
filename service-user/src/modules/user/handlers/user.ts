@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { Container } from 'typedi';
 import { errorResponse, successResponse } from '../../../helpers/api-response';
+import logger from '../../../helpers/logger';
 import { getRequestMetadata } from '../../../helpers/request-metadata';
 import { JWTPayload } from '../../../helpers/types';
 import { auth, requireRole } from '../../../middlewares/auth';
@@ -63,7 +64,7 @@ userRoutes.post(
         201
       );
     } catch (error) {
-      console.log(error);
+      logger.error('Error creating user:', error);
       return errorResponse(c, 'Failed to create user', 'USER_CREATE_FAILED', 400, error);
     }
   }
