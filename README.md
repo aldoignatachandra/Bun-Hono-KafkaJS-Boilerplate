@@ -7,7 +7,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Relational_DB-4169E1?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
-A production-ready, high-performance microservices starter kit. Built with **Bun** runtime, **Hono** web framework, **PostgreSQL** (with Drizzle ORM), and **Apache Kafka** for event-driven communication.
+High-performance microservices starter kit. Built with **Bun** runtime, **Hono** web framework, **PostgreSQL** (with Drizzle ORM), and **Apache Kafka** for event-driven communication.
 
 This boilerplate implements the **CQRS** (Command Query Responsibility Segregation) pattern, ensuring a clean separation between read and write operations, and uses **Kafka** for asynchronous inter-service communication.
 
