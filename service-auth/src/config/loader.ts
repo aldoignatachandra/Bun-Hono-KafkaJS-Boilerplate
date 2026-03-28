@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
+import { assertJwtSecret } from './jwt-validation';
 
 /**
  * Configuration schema validation using Zod
@@ -107,6 +108,13 @@ const ConfigSchema = z.object({
       mockExternalServices: z.boolean().optional(),
     })
     .optional(),
+  cors: z
+    .object({
+      allowedOrigins: z.array(z.string()).default(['*']),
+      credentials: z.boolean().default(true),
+      maxAge: z.number().default(3600),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -125,6 +133,7 @@ class ConfigLoader {
 
   private constructor() {
     this.env = process.env.NODE_ENV || 'dev';
+    assertJwtSecret();
     this.config = this.loadConfig();
   }
 
@@ -285,6 +294,14 @@ class ConfigLoader {
       config.kafka.brokers = process.env.KAFKA_BROKERS.split(',').map(b => b.trim());
     }
 
+    // CORS overrides
+    // TODO: Change CORS_ALLOWED_ORIGINS to specific origins in production (e.g., https://yourdomain.com)
+    // Currently defaults to ['*'] for development convenience
+    if (process.env.CORS_ALLOWED_ORIGINS !== undefined) {
+      if (!config.cors) config.cors = {};
+      config.cors.allowedOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim());
+    }
+
     // 5. Substitute any ${VAR} placeholders in the config (e.g. from JSON files)
     config = this.substituteEnvVars(config);
 
@@ -310,6 +327,24 @@ class ConfigLoader {
 
   public isProduction(): boolean {
     return this.env === 'prod';
+  }
+
+  public getCorsConfig(): { allowedOrigins: string[]; credentials: boolean; maxAge: number } {
+    const cors = this.config.cors;
+    if (!cors) {
+      return { allowedOrigins: ['*'], credentials: true, maxAge: 3600 };
+    }
+    return {
+      allowedOrigins: cors.allowedOrigins ?? ['*'],
+      credentials: cors.credentials ?? true,
+      maxAge: cors.maxAge ?? 3600,
+    };
+  }
+
+  public isOriginAllowed(origin: string): boolean {
+    const cors = this.getCorsConfig();
+    if (cors.allowedOrigins.includes('*')) return true;
+    return cors.allowedOrigins.includes(origin);
   }
 }
 
